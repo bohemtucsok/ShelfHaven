@@ -14,6 +14,10 @@
 </p>
 
 <p align="center">
+  <strong>🇬🇧 English</strong> | <a href="README.hu.md">🇭🇺 Magyar</a>
+</p>
+
+<p align="center">
   <a href="#screenshots">Screenshots</a> •
   <a href="#features">Features</a> •
   <a href="#quick-start">Quick Start</a> •
