@@ -388,6 +388,6 @@ ShelfHaven/
 
 A projekt az [MIT Licenc](LICENSE) alatt áll.
 
-## Disclaimer
+## Jogi nyilatkozat
 
-This software is provided for managing **legally obtained** e-books and digital content only. The developers are not responsible for how the software is used. It is the sole responsibility of the user/operator to ensure compliance with all applicable copyright laws and regulations in their jurisdiction. Unauthorized distribution of copyrighted material is strictly prohibited.
+Ez a szoftver kizárólag **legálisan beszerzett** e-könyvek és digitális tartalmak kezelésére szolgál. A fejlesztők nem felelősek a szoftver felhasználásának módjáért. Kizárólag a felhasználó/üzemeltető felelőssége, hogy betartsa az adott joghatóságban érvényes szerzői jogi törvényeket és előírásokat. Szerzői joggal védett tartalmak jogosulatlan terjesztése szigorúan tilos.
