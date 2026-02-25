@@ -278,30 +278,6 @@ Architecture:
 
 ---
 
-## Pages (17)
-
-| Route | Description | Auth |
-|-------|-------------|------|
-| `/` | Home page | No |
-| `/login` | Login | No |
-| `/register` | Registration | No |
-| `/library` | Library (shelf/grid view) | Yes |
-| `/upload` | Book upload (single + bulk) | Yes |
-| `/book/[id]` | Book details | Yes |
-| `/reader/[id]` | EPUB reader | Yes |
-| `/shelves` | Custom shelves | Yes |
-| `/shelves/[id]` | Shelf contents | Yes |
-| `/profile` | Profile settings | Yes |
-| `/user/[id]` | Public user profile | Yes |
-| `/topics` | Topics | Yes |
-| `/stats` | Reading statistics | Yes |
-| `/discover` | Discover page | Yes |
-| `/activity` | Activity feed | Yes |
-| `/shared/[token]` | Shared book link | No* |
-| `/admin` | Admin dashboard | Admin |
-
----
-
 ## Database Schema (24 tables)
 
 ```
