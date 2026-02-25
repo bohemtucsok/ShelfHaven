@@ -384,16 +384,6 @@ ShelfHaven/
 
 ---
 
-## Contributing
-
-This is a community (non-commercial) project. All contributions are welcome!
-
-## Disclaimer
-
-This software is provided **"AS IS"**, without warranty of any kind. The authors, developers, and contributors bear no responsibility for any direct or indirect damages, data loss, service outages, or any other disadvantages arising from the use of this software. Users install and use the software at their own risk.
-
-Uploaded content is the sole responsibility of the uploading user. The operator does not review or verify the copyright status of e-books uploaded by users.
-
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
