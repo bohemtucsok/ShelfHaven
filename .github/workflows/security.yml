@@ -1,0 +1,57 @@
+name: Security Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run weekly on Monday at 6:00 UTC
+    - cron: '0 6 * * 1'
+
+jobs:
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: shelfhaven/package-lock.json
+
+      - name: Install dependencies
+        working-directory: shelfhaven
+        run: npm ci
+
+      - name: NPM Audit (production)
+        working-directory: shelfhaven
+        run: npm audit --production --audit-level=high
+        continue-on-error: true
+
+      - name: TypeScript type check
+        working-directory: shelfhaven
+        run: npx tsc --noEmit
+
+      - name: Run unit tests
+        working-directory: shelfhaven
+        run: npx vitest run
+
+      - name: Check for secrets in code
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          extra_args: --only-verified
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high

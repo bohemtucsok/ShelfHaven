@@ -1,0 +1,124 @@
+@import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *));
+
+:root {
+  /* Library color palette - Light */
+  --bg-primary: #F5E6D3;
+  --bg-secondary: #EDD5B3;
+  --bg-card: #FFFFFF;
+  --bg-input: #FFFFFF;
+  --shelf-dark: #654321;
+  --shelf-medium: #8B4513;
+  --shelf-light: #A0522D;
+  --accent-gold: #C9A96E;
+  --accent-copper: #B8860B;
+  --text-primary: #2C1810;
+  --text-secondary: #3E2723;
+  --text-muted: #8D6E63;
+  --border: rgba(139, 69, 19, 0.2);
+  --border-hover: rgba(139, 69, 19, 0.5);
+}
+
+.dark {
+  /* Library color palette - Dark (warm wood atmosphere) */
+  --bg-primary: #1a1410;
+  --bg-secondary: #241c14;
+  --bg-card: #2a2018;
+  --bg-input: #1e1712;
+  --shelf-dark: #3d2b1a;
+  --shelf-medium: #5c3d24;
+  --shelf-light: #7a5030;
+  --accent-gold: #d4a574;
+  --accent-copper: #c99a4e;
+  --text-primary: #e8ddd0;
+  --text-secondary: #c4b5a0;
+  --text-muted: #9a8672;
+  --border: rgba(212, 165, 116, 0.2);
+  --border-hover: rgba(212, 165, 116, 0.4);
+}
+
+@theme inline {
+  --color-background: var(--bg-primary);
+  --color-foreground: var(--text-primary);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-sans), Georgia, "Times New Roman", serif;
+  min-height: 100vh;
+}
+
+/* Wood shelf texture (CSS-only) */
+.shelf-texture {
+  background: linear-gradient(
+    180deg,
+    var(--shelf-dark) 0%,
+    var(--shelf-medium) 15%,
+    var(--shelf-light) 30%,
+    var(--shelf-medium) 50%,
+    var(--shelf-dark) 70%,
+    #5C3A1E 100%
+  );
+  box-shadow:
+    0 4px 6px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.dark .shelf-texture {
+  background: linear-gradient(
+    180deg,
+    #2a1e12 0%,
+    #3d2b1a 15%,
+    #4d3823 30%,
+    #3d2b1a 50%,
+    #2a1e12 70%,
+    #1e1508 100%
+  );
+  box-shadow:
+    0 4px 6px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Book spine hover effect */
+.book-spine {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  transform-origin: left center;
+}
+
+.book-spine:hover {
+  transform: rotateY(-20deg) translateZ(10px);
+  box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--shelf-medium);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--shelf-dark);
+}
+
+/* EPUB highlight annotation colors */
+.hl-yellow { background-color: rgba(250, 204, 21, 0.3) !important; }
+.hl-green { background-color: rgba(34, 197, 94, 0.3) !important; }
+.hl-blue { background-color: rgba(59, 130, 246, 0.3) !important; }
+.hl-pink { background-color: rgba(236, 72, 153, 0.3) !important; }
+
+.dark .hl-yellow { background-color: rgba(250, 204, 21, 0.4) !important; }
+.dark .hl-green { background-color: rgba(34, 197, 94, 0.4) !important; }
+.dark .hl-blue { background-color: rgba(59, 130, 246, 0.4) !important; }
+.dark .hl-pink { background-color: rgba(236, 72, 153, 0.4) !important; }

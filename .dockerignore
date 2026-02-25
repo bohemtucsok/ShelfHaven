@@ -1,0 +1,17 @@
+node_modules
+.next
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+docker-compose*.yml
+Dockerfile*
+README.md
+*.md
+!CLAUDE.md
+coverage
+tests
+.claude
+.vscode
+*.log

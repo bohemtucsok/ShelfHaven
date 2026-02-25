@@ -1,0 +1,36 @@
+{$SITE_DOMAIN:localhost} {
+    reverse_proxy app:3000
+
+    encode gzip
+
+    # Security headers (in addition to Next.js headers)
+    header {
+        -Server
+        X-Frame-Options "DENY"
+    }
+
+    # Static assets cache
+    @static {
+        path *.js *.css *.png *.jpg *.jpeg *.gif *.ico *.svg *.woff *.woff2
+    }
+    header @static Cache-Control "public, max-age=31536000, immutable"
+
+    # Block common attack paths
+    @blocked {
+        path /wp-admin* /wp-login* /.env* /phpinfo* /phpmyadmin* /.git* /xmlrpc*
+    }
+    respond @blocked 404
+
+    # Limit request body size (100MB for file uploads)
+    request_body {
+        max_size 100MB
+    }
+
+    # Access logs
+    log {
+        output file /var/log/caddy/access.log {
+            roll_size 10mb
+            roll_keep 5
+        }
+    }
+}
