@@ -4,7 +4,7 @@
   <img src="https://img.shields.io/badge/TypeScript-strict-blue" alt="TypeScript" />
   <img src="https://img.shields.io/badge/Docker-Compose-2496ED" alt="Docker Compose" />
   <img src="https://img.shields.io/badge/MySQL-8.4-orange" alt="MySQL 8.4" />
-  <img src="https://img.shields.io/badge/license-Private-red" alt="Private" />
+  <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License" />
 </p>
 
 # ShelfHaven
@@ -388,6 +388,12 @@ ShelfHaven/
 
 Ez egy közösségi (nem kereskedelmi) projekt. Minden hozzájárulást szívesen fogadunk!
 
+## Jogi nyilatkozat
+
+A szoftver **"JELENLEGI ÁLLAPOTÁBAN"** kerül kiadásra, mindenféle kifejezett vagy hallgatólagos garancia nélkül. A program készítőit, fejlesztőit és közreműködőit semmilyen felelősség nem terheli a szoftver használatából eredő közvetlen vagy közvetett károkért, adatvesztésért, szolgáltatáskiesésért vagy bármilyen egyéb hátrányért. A felhasználó saját felelősségére telepíti és használja a szoftvert.
+
+A feltöltött tartalmakért kizárólag a feltöltő felhasználó felel. Az üzemeltető nem vizsgálja és nem ellenőrzi a felhasználók által feltöltött e-könyvek szerzői jogi státuszát.
+
 ## Licenc
 
-Privát projekt — minden jog fenntartva.
+A projekt az [MIT Licenc](LICENSE) alatt áll.

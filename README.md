@@ -4,7 +4,7 @@
   <img src="https://img.shields.io/badge/TypeScript-strict-blue" alt="TypeScript" />
   <img src="https://img.shields.io/badge/Docker-Compose-2496ED" alt="Docker Compose" />
   <img src="https://img.shields.io/badge/MySQL-8.4-orange" alt="MySQL 8.4" />
-  <img src="https://img.shields.io/badge/license-Private-red" alt="Private" />
+  <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License" />
 </p>
 
 # ShelfHaven
@@ -388,6 +388,12 @@ ShelfHaven/
 
 This is a community (non-commercial) project. All contributions are welcome!
 
+## Disclaimer
+
+This software is provided **"AS IS"**, without warranty of any kind. The authors, developers, and contributors bear no responsibility for any direct or indirect damages, data loss, service outages, or any other disadvantages arising from the use of this software. Users install and use the software at their own risk.
+
+Uploaded content is the sole responsibility of the uploading user. The operator does not review or verify the copyright status of e-books uploaded by users.
+
 ## License
 
-Private project — all rights reserved.
+This project is licensed under the [MIT License](LICENSE).
