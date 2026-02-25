@@ -387,3 +387,7 @@ ShelfHaven/
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
+
+## Disclaimer
+
+This software is provided for managing **legally obtained** e-books and digital content only. The developers are not responsible for how the software is used. It is the sole responsibility of the user/operator to ensure compliance with all applicable copyright laws and regulations in their jurisdiction. Unauthorized distribution of copyrighted material is strictly prohibited.
