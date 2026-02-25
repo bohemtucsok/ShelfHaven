@@ -14,6 +14,7 @@
 </p>
 
 <p align="center">
+  <a href="#screenshots">Screenshots</a> •
   <a href="#features">Features</a> •
   <a href="#quick-start">Quick Start</a> •
   <a href="#configuration">Configuration</a> •
@@ -32,6 +33,36 @@ You have a collection of e-books scattered across devices. You want a beautiful,
 **ShelfHaven** gives you a full e-library platform running in Docker. Upload EPUBs (or PDFs/MOBIs — they get auto-converted), organize them on virtual bookshelves with categories and topics, and read them in a built-in EPUB reader with dark mode, bookmarks, and highlights.
 
 Invite friends → they can browse your library, save books, comment, and follow each other. That's it.
+
+---
+
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/01-home.png" width="80%" alt="Home page with bookshelf and categories" />
+</p>
+
+<p align="center">
+  <em>Home page — mascot, categories, and your bookshelf at a glance</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/01-login.png" width="45%" alt="Login page" />
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/03-admin.png" width="45%" alt="Admin dashboard" />
+</p>
+
+<p align="center">
+  <em>Login &nbsp;|&nbsp; Admin Dashboard with statistics</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/04-stats.png" width="80%" alt="Reading statistics with charts" />
+</p>
+
+<p align="center">
+  <em>Reading statistics — goals, streaks, and charts</em>
+</p>
 
 ---
 
