@@ -384,16 +384,6 @@ ShelfHaven/
 
 ---
 
-## Közreműködés
-
-Ez egy közösségi (nem kereskedelmi) projekt. Minden hozzájárulást szívesen fogadunk!
-
-## Jogi nyilatkozat
-
-A szoftver **"JELENLEGI ÁLLAPOTÁBAN"** kerül kiadásra, mindenféle kifejezett vagy hallgatólagos garancia nélkül. A program készítőit, fejlesztőit és közreműködőit semmilyen felelősség nem terheli a szoftver használatából eredő közvetlen vagy közvetett károkért, adatvesztésért, szolgáltatáskiesésért vagy bármilyen egyéb hátrányért. A felhasználó saját felelősségére telepíti és használja a szoftvert.
-
-A feltöltött tartalmakért kizárólag a feltöltő felhasználó felel. Az üzemeltető nem vizsgálja és nem ellenőrzi a felhasználók által feltöltött e-könyvek szerzői jogi státuszát.
-
 ## Licenc
 
 A projekt az [MIT Licenc](LICENSE) alatt áll.
