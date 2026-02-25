@@ -1,105 +1,99 @@
-# ShelfHaven (eBookesPolc) v3.3
+<p align="center">
+  <img src="https://img.shields.io/badge/Next.js-16-black" alt="Next.js 16" />
+  <img src="https://img.shields.io/badge/React-19-blue" alt="React 19" />
+  <img src="https://img.shields.io/badge/TypeScript-strict-blue" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Docker-Compose-2496ED" alt="Docker Compose" />
+  <img src="https://img.shields.io/badge/MySQL-8.4-orange" alt="MySQL 8.4" />
+  <img src="https://img.shields.io/badge/license-Private-red" alt="Private" />
+</p>
 
-Webes e-konyvtar platform, ahol felhasznalok e-konyveket tolthetnek fel, rendezhetik kategoriak es temak szerint, es a beepitett EPUB olvasoban olvashatjak azokat. A konyvek vizualisan konyvespolcokon jelennek meg, kozossegi funkciokkal (kovetkoezes, kommentek, tevekenyseegi hirfolyam).
+# ShelfHaven
 
----
+<p align="center">
+  <strong>Web-based e-library platform with bookshelf UI, built-in EPUB reader, and social features.</strong>
+</p>
 
-## Funkcionalitas
-
-### Alapfunkciok
-- E-konyv feltoltes (EPUB, PDF, MOBI, AZW3, FB2, CBR) - max 50MB
-- Automatikus PDF/MOBI -> EPUB konverzio (Calibre)
-- Beepitett EPUB olvaso (EPUB.js) soetoet moddal, betutipus/meret beallitassal
-- Olvasasi haladas mentese (CFI pozicio + szazalek)
-- Konyvjelzok, kiemellesek, annotaciok
-- Konyvespolc nezet (3D konyvgerinc effekt) es racs nezet
-- Kategoriak es temak szerinti rendszerezes
-- Egyeni polcok (publikus / privat)
-- Kereses (teljes szoveges: cim + szerzo)
-
-### Kozossegi funkciok (v3.2)
-- Felhasznaloi profilok es kovetoesi rendszer (Follow)
-- Kommentek konyvekhez (toebbszintu valasz szalak)
-- Tevekenyseegi hirfolyam (Activity Feed)
-- Felfedezoes oldal (Discover) - nepszeru es uj konyvek
-- Konyv megosztasa (publikus link token-nel, lejarat megadasaval)
-
-### Admin funkciok
-- Felhasznalo kezeles (letrehozas, szerep modositas, torles)
-- Konyv moderacio (osszes konyv listazas, torles)
-- Kategoria es tema kezeles
-- SMTP email beallitas (verifikacios email toggle)
-- OIDC (Authentik) integracol beallitasa
-- Regisztracio ki/bekapcsolas
-- Rate limit monitor
-- Teljes biztonsagi mentes es visszaallitas (v3.3)
-
-### Teljesitmeny es offline (v3.1)
-- Blurhash boritokep placeholder-ek
-- PWA (Service Worker + runtimeCaching)
-- Offline konyvek (IndexedDB tarolassal)
-- Lazy-loaded Recharts statisztika grafikonok
+<p align="center">
+  <a href="#features">Features</a> •
+  <a href="#quick-start">Quick Start</a> •
+  <a href="#configuration">Configuration</a> •
+  <a href="#tech-stack">Tech Stack</a> •
+  <a href="#production">Production</a> •
+  <a href="#security">Security</a> •
+  <a href="#testing">Testing</a>
+</p>
 
 ---
 
-## Tech Stack
+## Why ShelfHaven?
 
-| Reteg | Technologia |
-|-------|-------------|
-| **Frontend** | Next.js 16 (App Router), React 19, TypeScript |
-| **Stilusok** | Tailwind CSS 4, shadcn/ui (Radix UI), Framer Motion |
-| **Backend** | Next.js API Routes, Prisma ORM v7 |
-| **Adatbazis** | MySQL 8.4 (Docker) |
-| **Auth** | NextAuth.js v5 (Auth.js) - credentials + OIDC (Authentik) |
-| **Storage** | MinIO (S3-kompatibilis, Docker container) |
-| **E-konyv** | EPUB.js (bongeszos olvasas), Calibre CLI (konverzio) |
-| **i18n** | next-intl v4 (magyar + angol) |
-| **Allapotkezeles** | Zustand |
-| **Validacio** | Zod v4 + React Hook Form |
-| **Teszteles** | Vitest (4 unit) + Playwright (22 E2E) |
-| **Infra** | Docker Compose (4 service) |
+You have a collection of e-books scattered across devices. You want a beautiful, self-hosted library where you can upload, organize, and read them — with a cozy bookshelf feel, not a boring file list.
+
+**ShelfHaven** gives you a full e-library platform running in Docker. Upload EPUBs (or PDFs/MOBIs — they get auto-converted), organize them on virtual bookshelves with categories and topics, and read them in a built-in EPUB reader with dark mode, bookmarks, and highlights.
+
+Invite friends → they can browse your library, save books, comment, and follow each other. That's it.
 
 ---
 
-## Elofeltetelek
+## Features
 
-- **Docker** + Docker Compose v2
-- **Node.js 22+** (fejleszteshez)
+- **Bookshelf UI** with 3D spine effects and smooth animations (Framer Motion)
+- **Built-in EPUB reader** — dark mode, font settings, bookmarks, highlights, annotations
+- **Auto-conversion** — upload PDF/MOBI/AZW3/FB2/CBR, Calibre converts to EPUB
+- **Social features** — follow users, comment on books, activity feed, discover page
+- **Save to library** — save other users' books to your own collection
+- **Custom shelves** — organize books into public or private shelves
+- **Categories & topics** — color-coded chips, auto-categorization from metadata
+- **Admin dashboard** — user management, book moderation, full backup/restore (ZIP)
+- **PWA + offline** — install as app, read books offline (IndexedDB)
+- **i18n** — Hungarian + English, cookie-based locale detection
+- **Security hardened** — OWASP audit passed, rate limiting, CSRF, CSP, brute-force protection
 
 ---
 
-## Gyorsinditas
+## Quick Start
 
-### 1. Docker Compose (ajanlott)
+### 1. Clone and configure
 
 ```bash
 git clone <repo-url>
-cd ebookespolc
+cd ShelfHaven
 cp .env.example .env
-
-# Szerkeszd a .env fajlt - csereld ki a jelszavakat!
-# nano .env
-
-# Inditas (elso alkalommal ~3-5 perc a build)
-docker compose up -d
-
-# Megnyitas: http://localhost:3000
 ```
 
-Az adatbazis tabla automatikusan letrejon az elso indulaskor (`docker-entrypoint.sh`).
+Edit `.env` — change the passwords:
 
-### 2. Alapertelmezett admin felhasznalo
+```bash
+MYSQL_ROOT_PASSWORD=your_strong_password
+MYSQL_PASSWORD=your_db_password
+NEXTAUTH_SECRET=generate-with-openssl-rand-base64-32
+MINIO_ROOT_PASSWORD=your_minio_password
+```
 
-Az elso indulaskor automatikusan letrejon egy admin felhasznalo:
+### 2. Start with Docker Compose
+
+```bash
+docker compose up -d
+# First run takes ~3-5 minutes to build
+```
+
+### 3. Open and log in
+
+Open **http://localhost:3000** — a default admin account is created automatically:
 
 | | |
 |---|---|
 | **Email** | `demo@demo.hu` |
-| **Jelszo** | `Demo123!` |
+| **Password** | `Demo123!` |
 
-> **FONTOS**: Production-ben valtoztasd meg a jelszot vagy hozz letre sajat admin fiokot es torold a demo-t!
+> **Important:** Change the password or create your own admin account in production!
 
-### 3. Fejlesztoi mod (hot-reload)
+### 4. Upload books
+
+Go to **Upload**, drag & drop your e-books (EPUB, PDF, MOBI — max 50MB), and they appear on your bookshelf.
+
+<details>
+<summary><strong>Development mode (hot-reload)</strong></summary>
 
 ```bash
 npm install
@@ -108,33 +102,85 @@ npx prisma db push
 npm run dev
 ```
 
+Requires Node.js 22+ and a running MySQL + MinIO instance.
+
+</details>
+
 ---
 
-## Docker szolgaltatasok
+## Docker Services
 
-| Service | Port | Leiras | Healthcheck |
-|---------|------|--------|-------------|
-| `app` | 3000 | Next.js alkalmazas | `wget /api/health` |
-| `db` | 3306 | MySQL 8.4 adatbazis | `mysqladmin ping` |
-| `minio` | 9000 / 9001 | Fajl storage (API / konzol) | `mc ready local` |
-| `calibre` | 8080 | E-konyv konverzio szerver | `GET /health` |
+| Service | Port | Description | Healthcheck |
+|---------|------|-------------|-------------|
+| `app` | 3000 | Next.js application | `wget /api/health` |
+| `db` | 3306 | MySQL 8.4 database | `mysqladmin ping` |
+| `minio` | 9000 / 9001 | File storage (API / console) | `curl /minio/health/live` |
+| `calibre` | 8080 | E-book conversion server | `curl /health` |
 
 ```bash
-docker compose up -d            # Inditas
-docker compose down             # Leallitas
-docker compose logs -f app      # Log kovetes
-docker compose restart app      # App ujrainditas
+docker compose up -d              # Start all services
+docker compose down               # Stop all services
+docker compose logs -f app        # Follow app logs
+docker compose build --no-cache app  # Full rebuild
 ```
 
 ---
 
-## Production deployment
+## Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MYSQL_ROOT_PASSWORD` | — | MySQL root password |
+| `MYSQL_PASSWORD` | — | MySQL app user password |
+| `NEXTAUTH_SECRET` | — | Auth encryption key (min 32 chars!) |
+| `NEXTAUTH_URL` | `http://localhost:3000` | Public app URL |
+| `AUTH_TRUST_HOST` | `true` | Set `true` behind reverse proxy |
+| `MINIO_ROOT_USER` | `minioadmin` | MinIO access key |
+| `MINIO_ROOT_PASSWORD` | — | MinIO secret key |
+| `MINIO_PUBLIC_ENDPOINT` | `localhost` | MinIO public hostname |
+| `APP_PORT` | `3000` | Application port |
+
+> **Generate secrets:** `openssl rand -base64 32`
+
+<details>
+<summary><strong>Optional settings (configurable from admin panel)</strong></summary>
+
+These are stored in the database `Setting` table and can be changed from the admin dashboard:
+
+- **OIDC:** `oidc_enabled`, `oidc_issuer`, `oidc_client_id`, `oidc_client_secret`, `oidc_only`
+- **SMTP:** `smtp_host`, `smtp_port`, `smtp_user`, `smtp_pass`, `smtp_from`
+- **Toggles:** `email_verification_enabled`, `registration_enabled`
+
+</details>
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Frontend** | Next.js 16 (App Router), React 19, TypeScript |
+| **Styling** | Tailwind CSS 4, shadcn/ui (Radix UI), Framer Motion |
+| **Backend** | Next.js API Routes, Prisma ORM v7 |
+| **Database** | MySQL 8.4 (Docker) |
+| **Auth** | NextAuth.js v5 (Auth.js) — credentials + OIDC (Authentik) |
+| **Storage** | MinIO (S3-compatible, Docker container) |
+| **E-book** | EPUB.js (browser reader), Calibre CLI (conversion) |
+| **i18n** | next-intl v4 (Hungarian + English) |
+| **State** | Zustand |
+| **Validation** | Zod v4 + React Hook Form |
+| **Testing** | Vitest (unit) + Playwright (E2E) |
+| **Infrastructure** | Docker Compose (4 services) |
+
+---
+
+## Production
 
 ```
                     ┌─────────────┐
    HTTPS (443)      │   Reverse   │
   ─────────────────>│   Proxy     │
-                    │  (NPM/nginx)│
+                    │ (nginx/NPM) │
                     └──────┬──────┘
                            │ :3000
                     ┌──────┴──────┐
@@ -150,124 +196,82 @@ docker compose restart app      # App ujrainditas
             └────────┘ └──────┘ └────────┘
 ```
 
-Production-ben allitsd be a `.env` fajlban:
-- `NEXTAUTH_SECRET` — generalas: `openssl rand -base64 32`
-- `MYSQL_ROOT_PASSWORD`, `MYSQL_PASSWORD` — eros jelszavak
-- `MINIO_ROOT_PASSWORD` — eros jelszo
-- `NEXTAUTH_URL` — a domain (pl. `https://yourdomain.com`)
-- `MINIO_PUBLIC_ENDPOINT` — a domain
+<details>
+<summary><strong>Production checklist</strong></summary>
 
-**Architektura jellemzok:**
-- Ket halozat: `frontend` (publikus) + `backend` (internal, nem elerheto kivulrol)
-- Memory limitek: app 512MB, calibre 1GB
-- JSON log driver (max 10MB x 5 fajl / container)
-- MySQL: `--mysql-native-password=ON` a kompatibilitashoz
-- Reverse proxy (pl. nginx, Caddy, NPM) szukseges HTTPS-hez
+Set in `.env`:
+- `NEXTAUTH_SECRET` — generate: `openssl rand -base64 32`
+- `MYSQL_ROOT_PASSWORD`, `MYSQL_PASSWORD` — strong passwords
+- `MINIO_ROOT_PASSWORD` — strong password
+- `NEXTAUTH_URL` — your domain (e.g., `https://yourdomain.com`)
+- `MINIO_PUBLIC_ENDPOINT` — your domain
 
----
+Architecture:
+- Two networks: `frontend` (public) + `backend` (internal, not exposed)
+- Memory limits: app 512MB, calibre 1GB
+- JSON log driver (max 10MB x 5 files per container)
+- Reverse proxy (nginx, Caddy, or NPM) required for HTTPS
 
-## Kornyezeti valtozok
-
-| Valtozo | Alapertelmezett | Leiras |
-|---------|-----------------|--------|
-| `DATABASE_URL` | - | MySQL connection string |
-| `NEXTAUTH_SECRET` | - | Auth titkositasi kulcs (min 32 char!) |
-| `NEXTAUTH_URL` | `http://localhost:3000` | Alkalmazas publikus URL-je |
-| `AUTH_TRUST_HOST` | `true` | Reverse proxy mogott `true` kell |
-| `MINIO_ENDPOINT` | `localhost` | MinIO szerver cime |
-| `MINIO_PORT` | `9000` | MinIO API port |
-| `MINIO_ACCESS_KEY` | `minioadmin` | MinIO hozzaferesi kulcs |
-| `MINIO_SECRET_KEY` | `minioadmin` | MinIO titkos kulcs |
-| `MINIO_BUCKET_EBOOKS` | `ebooks` | E-konyv bucket neve |
-| `MINIO_BUCKET_COVERS` | `covers` | Boritokep bucket neve |
-| `MINIO_USE_SSL` | `false` | SSL hasznalata MinIO-hoz |
-| `CALIBRE_SERVICE_URL` | `http://localhost:8080` | Calibre konverzios szerver |
-
-> **FONTOS**: Production-ben MINDIG csereld le a titkos kulcsokat!
-> Generalas: `openssl rand -base64 32`
-
-### Opcionalis valtozok (admin panelrol is allithato)
-
-Az alabbi beallitasok a DB `Setting` tablajabol toltoednek, es az admin panelen modosithatok:
-- **OIDC**: `oidc_enabled`, `oidc_issuer`, `oidc_client_id`, `oidc_client_secret`, `oidc_only`
-- **SMTP**: `smtp_host`, `smtp_port`, `smtp_user`, `smtp_pass`, `smtp_from`
-- **Toggle-ok**: `email_verification_enabled`, `registration_enabled`
+</details>
 
 ---
 
-## Projekt struktura
+## Security
 
-```
-ebookespolc/
-├── src/
-│   ├── app/                    # Next.js App Router
-│   │   ├── (auth)/             # Login, register, verify-email
-│   │   ├── (main)/             # Fooeldalak (17 oldal)
-│   │   │   ├── library/        # Konyvtar (polc/racs nezet)
-│   │   │   ├── book/[id]/      # Konyv reszletek
-│   │   │   ├── reader/[id]/    # EPUB olvaso
-│   │   │   ├── admin/          # Admin vezerlopult (7 tab)
-│   │   │   ├── profile/        # Felhasznaloi profil
-│   │   │   ├── shelves/        # Egyeni polcok
-│   │   │   ├── upload/         # Konyv feltoltes (single + bulk)
-│   │   │   ├── discover/       # Felfedezoes oldal
-│   │   │   ├── activity/       # Tevekenyseegi hirfolyam
-│   │   │   ├── topics/         # Temak
-│   │   │   ├── stats/          # Statisztikak
-│   │   │   └── user/[id]/      # Publikus profil
-│   │   ├── (reader)/           # Olvaso layout (kulon)
-│   │   └── api/                # REST API (~40 endpoint)
-│   │       ├── auth/           # Register, verify-email
-│   │       ├── books/          # CRUD, upload, convert, download, cover
-│   │       ├── admin/          # Stats, users, books, backup, settings
-│   │       ├── shelves/        # Polc CRUD + konyv hozzaadas
-│   │       ├── bookmarks/      # Konyvjelzo CRUD
-│   │       ├── user/           # Profil, reader-settings, follow
-│   │       ├── categories/     # Kategoria GET/POST
-│   │       ├── topics/         # Tema CRUD
-│   │       ├── activity/       # Hirfolyam
-│   │       ├── comments/       # Komment CRUD
-│   │       └── health/         # Docker healthcheck
-│   ├── components/             # React komponensek
-│   │   ├── ui/                 # shadcn/ui bazis komponensek
-│   │   ├── bookshelf/          # BookSpine, ShelfScene, BookCover
-│   │   ├── reader/             # EpubReader (fo olvaso)
-│   │   ├── layout/             # Header, Footer
-│   │   └── auth/               # Login/Register form-ok
-│   ├── lib/                    # Segedi konyvtarak
-│   │   ├── auth.ts             # NextAuth config + brute-force vedelem
-│   │   ├── prisma.ts           # Prisma client singleton
-│   │   ├── storage/minio.ts    # MinIO S3 kliens
-│   │   ├── rate-limit.ts       # In-memory rate limiter (7 preset)
-│   │   ├── csrf.ts             # CSRF Origin/Host validacio
-│   │   ├── security-logger.ts  # Strukturalt JSON security logging
-│   │   ├── email.ts            # SMTP email kuldes
-│   │   ├── backup/             # Admin backup & restore szolgaltatas
-│   │   └── ebook/              # EPUB parser, Calibre kliens, cover utils
-│   ├── hooks/                  # Custom React hook-ok
-│   ├── store/                  # Zustand store-ok
-│   ├── i18n/                   # next-intl konfig
-│   └── types/                  # TypeScript tipusok
-├── prisma/
-│   ├── schema.prisma           # Adatbazis sema (23 tabla)
-│   ├── init.sql                # Auto-generalt create script
-│   └── seed.ts                 # Demo adat betoltes
-├── messages/                   # Forditasok
-│   ├── hu.json                 # Magyar (~350+ kulcs)
-│   └── en.json                 # Angol
-├── tests/
-│   ├── unit/                   # Vitest unit tesztek (4 fajl)
-│   └── e2e/                    # Playwright E2E tesztek (22 fajl)
-├── docker/
-│   └── calibre/                # Calibre konverzios szerver (Python)
-├── docker-compose.yml          # Docker Compose (unified)
-├── Dockerfile                  # Multi-stage build (4 stage)
-└── docker-entrypoint.sh        # Auto DB init + migration
-```
+### Implemented protections
+
+| Layer | Detail |
+|-------|--------|
+| **Authentication** | NextAuth.js v5 (JWT, 24h expiry) |
+| **OIDC** | Authentik integration (admin-configurable) |
+| **CSRF** | Origin/Host validation on all mutating endpoints |
+| **Rate limiting** | In-memory, 7 presets (auth: 10/15min, API: 60/min, public: 30/min) |
+| **Brute-force** | 5 attempts → 15min lockout (per email) |
+| **CSP** | Restrictive Content-Security-Policy |
+| **Headers** | HSTS, X-Frame-Options DENY, nosniff, COOP, CORP, Permissions-Policy |
+| **EPUB safety** | ZIP bomb protection (5000 file limit, ratio detection) |
+| **SSRF** | Private IP check on cover downloads (post-redirect too) |
+| **File validation** | Magic bytes for 8 formats (EPUB, PDF, MOBI, AZW3, FB2, CBR, DOCX, RTF) |
+| **Stale JWT** | DB verification every 5 min, deleted user token invalidation |
+| **Input** | Zod v4 validation on every API endpoint |
+
+<details>
+<summary><strong>Audit results (2026-02-23)</strong></summary>
+
+- **15/15 input validation tests PASS** (SQLi, XSS, path traversal, XXE)
+- **All protected endpoints** correctly return 401 without auth
+- **CORS:** deny-all policy
+- **Overall rating: A-**
+
+</details>
 
 ---
 
-## Adatbazis sema (23 tabla)
+## Pages (17)
+
+| Route | Description | Auth |
+|-------|-------------|------|
+| `/` | Home page | No |
+| `/login` | Login | No |
+| `/register` | Registration | No |
+| `/library` | Library (shelf/grid view) | Yes |
+| `/upload` | Book upload (single + bulk) | Yes |
+| `/book/[id]` | Book details | Yes |
+| `/reader/[id]` | EPUB reader | Yes |
+| `/shelves` | Custom shelves | Yes |
+| `/shelves/[id]` | Shelf contents | Yes |
+| `/profile` | Profile settings | Yes |
+| `/user/[id]` | Public user profile | Yes |
+| `/topics` | Topics | Yes |
+| `/stats` | Reading statistics | Yes |
+| `/discover` | Discover page | Yes |
+| `/activity` | Activity feed | Yes |
+| `/shared/[token]` | Shared book link | No* |
+| `/admin` | Admin dashboard | Admin |
+
+---
+
+## Database Schema (24 tables)
 
 ```
 User ─────┬── Book ────────┬── ReadingProgress
@@ -276,153 +280,93 @@ User ─────┬── Book ────────┬── ReadingProg
           ├── Session      ├── Review
           ├── Shelf ──── ShelfBook
           ├── Follow       ├── Like
-          ├── Activity     ├── SharedLink
-          ├── Comment      ├── Comment
-          ├── Notification ├── BookCategory ── Category
-          └── ReadingGoal  └── BookTopic ──── Topic
+          ├── Activity     ├── SavedBook
+          ├── Comment      ├── SharedLink
+          ├── Notification ├── Comment
+          └── ReadingGoal  ├── BookCategory ── Category
+                           └── BookTopic ──── Topic
 
-Kulon: Setting, VerificationToken
+Standalone: Setting, VerificationToken
 ```
 
 ---
 
-## Teszteles
+## Testing
 
 ```bash
-# Unit tesztek (Vitest)
-npm run test:run
-
-# E2E tesztek (Playwright)
-npm run test:e2e
-
-# E2E interaktiv UI moddal
-npm run test:e2e:ui
-
-# Osszes teszt (CI)
-npm run test:run && npm run test:e2e
+npm run test:run          # Unit tests (Vitest)
+npm run test:e2e          # E2E tests (Playwright)
+npm run test:e2e:ui       # E2E with interactive UI
+npx tsc --noEmit          # TypeScript check
 ```
 
-| Tipus | Darabszam | Framework |
-|-------|-----------|-----------|
-| Unit / Integration | 4 fajl | Vitest + React Testing Library |
-| E2E | 22 fajl | Playwright (Chromium) |
+| Type | Count | Framework |
+|------|-------|-----------|
+| Unit / Integration | 4 files | Vitest + React Testing Library |
+| E2E | 22 files | Playwright (Chromium) |
 
 ---
 
-## Biztonsag
+## Project Structure
 
-### Implementalt vedelmi retegek
+<details>
+<summary><strong>Click to expand</strong></summary>
 
-- **Autentikaacio**: NextAuth.js v5 (JWT session, 7 napos lejacat)
-- **OIDC**: Authentik integraciol (admin panelrol konfiguralhato)
-- **CSRF**: Origin/Host validacio minden mutatoo (PUT/POST/DELETE) endpointon
-- **Rate limiting**: In-memory, 7 preset (auth: 10/15perc, API: 60/perc, public: 30/perc)
-- **Brute-force vedelem**: 5 probalkozas utan 15 perces zarolasa (email-enkent)
-- **CSP**: Restriktiv Content-Security-Policy (script, style, img, connect, frame-ancestors)
-- **Security headerek**: HSTS, X-Frame-Options DENY, nosniff, Referrer-Policy, Permissions-Policy, COOP, CORP
-- **EPUB ZIP bomb vedelem**: Max 5000 fajl, gyanius ratio detektalas
-- **SSRF vedelem**: Privat IP ellenorzes cover letoltesnel (redirect utan is)
-- **Magic bytes validacio**: 8 formatum (EPUB, PDF, MOBI, AZW3, FB2, CBR, DOCX, RTF)
-- **Stale JWT invalidalas**: 5 percenkent DB ellenorzes, torolt user token elorvenytelenites
-- **Middleware route vedelem**: 14 vedett route pattern
-- **Input validacio**: Zod v4 minden API endpointon
-
-### Audit eredmeny (2026-02-23)
-
-Teljes biztonsagi audit:
-- **15/15 input validacios teszt PASS** (SQLi, XSS, path traversal, XXE)
-- **Osszes vedett endpoint** helyesen 401-et ad auth nelkul
-- **CORS**: deny-all policy (nincs cross-origin hozzaferes)
-- **Osszertekeles**: **A-**
-
----
-
-## API veegpontok (foobbek)
-
-| Metodus | Utvonal | Leiras |
-|---------|---------|--------|
-| `GET` | `/api/books` | Konyvek listazasa (auth) |
-| `POST` | `/api/books/upload` | Konyv feltoltes |
-| `GET` | `/api/books/[id]` | Konyv reszletek |
-| `GET` | `/api/books/[id]/download` | EPUB letoltes (proxy) |
-| `GET` | `/api/books/[id]/cover` | Boritokep (proxy) |
-| `POST` | `/api/books/[id]/convert` | PDF/MOBI konverzio inditasa |
-| `GET` | `/api/categories` | Kategoriak (publikus) |
-| `GET` | `/api/topics` | Temak (publikus) |
-| `GET/PUT` | `/api/user/profile` | Profil lekeres/modositas |
-| `GET/POST` | `/api/shelves` | Polcok CRUD |
-| `POST` | `/api/auth/register` | Regisztracio |
-| `GET` | `/api/admin/stats` | Admin statisztikak |
-| `GET/POST` | `/api/admin/backup` | Biztonsagi mentes |
-| `POST` | `/api/admin/backup/restore` | Visszaallitas |
-| `GET/PUT` | `/api/admin/settings` | Admin beallitasok |
-| `GET` | `/api/health` | Docker healthcheck |
-
----
-
-## Oldalak (17 db)
-
-| Utvonal | Leiras | Auth |
-|---------|--------|------|
-| `/` | Fooldal | Nem |
-| `/login` | Bejelentkezes | Nem |
-| `/register` | Regisztracio | Nem |
-| `/library` | Konyvtar (polc/racs) | Igen |
-| `/upload` | Konyv feltoltes | Igen |
-| `/book/[id]` | Konyv reszletek | Igen |
-| `/reader/[id]` | EPUB olvaso | Igen |
-| `/shelves` | Sajat polcok | Igen |
-| `/shelves/[id]` | Polc tartalma | Igen |
-| `/profile` | Profil beallitasok | Igen |
-| `/user/[id]` | Publikus felhasznaloi profil | Igen |
-| `/topics` | Temak | Igen |
-| `/stats` | Olvasasi statisztikak | Igen |
-| `/discover` | Felfedezoes | Igen |
-| `/activity` | Tevekenyseegi hirfolyam | Igen |
-| `/shared/[token]` | Megosztott konyv | Nem* |
-| `/admin` | Admin vezerlopult | Admin |
-
----
-
-## Hasznos parancsok
-
-```bash
-# Fejlesztes
-npm run dev                              # Dev szerver
-npm run build                            # Production build
-npx prisma studio                        # Adatbazis bongeszes
-npx prisma db push                       # Sema szinkronizalas
-npm run db:seed                          # Demo adatok
-
-# Docker
-docker compose up -d                     # Inditas
-docker compose down                      # Leallitas
-docker compose logs -f app               # Log kovetes
-docker compose build --no-cache app      # Teljes ujraepites
-
-# Teszteles
-npm run test:run                         # Unit tesztek
-npm run test:e2e                         # E2E tesztek
-npx tsc --noEmit                         # TypeScript ellenorzes
+```
+ShelfHaven/
+├── src/
+│   ├── app/                    # Next.js App Router
+│   │   ├── (auth)/             # Login, register, verify-email
+│   │   ├── (main)/             # Main pages (17 pages)
+│   │   ├── (reader)/           # Reader layout (separate)
+│   │   └── api/                # REST API (~85 endpoints)
+│   ├── components/             # React components
+│   │   ├── bookshelf/          # BookSpine, ShelfScene, BookCover, SaveToLibraryButton
+│   │   ├── reader/             # EpubReader
+│   │   ├── social/             # ActivityCard, CommentSection, FollowButton
+│   │   ├── discover/           # DiscoverSection, TrendingCard
+│   │   ├── admin/              # BackupPanel
+│   │   └── layout/             # Header, Footer
+│   ├── lib/                    # Utilities
+│   │   ├── auth.ts             # NextAuth config + brute-force + OIDC
+│   │   ├── prisma.ts           # Prisma client singleton
+│   │   ├── storage/minio.ts    # MinIO S3 client
+│   │   ├── backup/             # Admin backup & restore
+│   │   └── ebook/              # EPUB parser, Calibre client, cover utils
+│   ├── hooks/                  # Custom React hooks
+│   ├── store/                  # Zustand stores
+│   └── types/                  # TypeScript types
+├── prisma/
+│   ├── schema.prisma           # Database schema (24 tables)
+│   └── init.sql                # Auto-generated create script
+├── messages/                   # Translations (hu + en)
+├── tests/                      # Unit (4) + E2E (22) tests
+├── docker/calibre/             # Calibre conversion server (Python)
+├── docker-compose.yml          # Docker Compose (unified, 4 services)
+├── Dockerfile                  # Multi-stage build (4 stages)
+└── docker-entrypoint.sh        # Auto DB init + migration
 ```
 
----
-
-## Verziotoerteenet
-
-| Verzio | Datum | Ujdonsagok |
-|--------|-------|------------|
-| **v3.3** | 2026-02 | Admin backup & restore (ZIP), biztonsagi audit, email verifikacio toggle, regisztracio toggle, OIDC security fix |
-| **v3.2** | 2026-02 | Kozossegi funkciok: Follow, Comment, Activity, Discover |
-| **v3.1** | 2026-01 | Teljesitmeny (Blurhash, PWA, offline), annotaciok, 6 uj E2E teszt |
-| **v3.0** | 2026-01 | Alapfunkciok: feltoltes, olvasas, polcok, kategoriak, temak, admin, i18n |
+</details>
 
 ---
 
-## Kozremukodes
+## Version History
 
-Ez egy kozossegi (nem kereskedelmi) projekt. Minden hozzajarulas szivesen fogadott!
+| Version | Date | Changes |
+|---------|------|---------|
+| **v3.4** | 2026-02 | SavedBook (save others' books), auth cookie HTTPS fix, shelf dropdown fix |
+| **v3.3** | 2026-02 | Admin backup & restore (ZIP), security audit, email/registration toggles |
+| **v3.2** | 2026-02 | Social: Follow, Comment, Activity, Discover |
+| **v3.1** | 2026-01 | Performance (Blurhash, PWA, offline), annotations, 6 new E2E tests |
+| **v3.0** | 2026-01 | Core: upload, read, shelves, categories, topics, admin, i18n |
 
-## Licenc
+---
 
-Privat projekt - minden jog fenntartva.
+## Contributing
+
+This is a community (non-commercial) project. All contributions are welcome!
+
+## License
+
+Private project — all rights reserved.
