@@ -20,23 +20,18 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: shelfhaven/package-lock.json
 
       - name: Install dependencies
-        working-directory: shelfhaven
         run: npm ci
 
       - name: NPM Audit (production)
-        working-directory: shelfhaven
         run: npm audit --production --audit-level=high
         continue-on-error: true
 
       - name: TypeScript type check
-        working-directory: shelfhaven
         run: npx tsc --noEmit
 
       - name: Run unit tests
-        working-directory: shelfhaven
         run: npx vitest run
 
       - name: Check for secrets in code
