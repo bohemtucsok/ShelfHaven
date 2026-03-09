@@ -28,6 +28,7 @@ RUN npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --scri
 # Stage: production (minimal image)
 FROM node:22-alpine AS production
 WORKDIR /app
+RUN apk update && apk upgrade --no-cache && rm -rf /var/cache/apk/*
 RUN addgroup -g 1001 -S appgroup && adduser -S appuser -u 1001
 
 COPY --from=build --chown=appuser:appgroup /app/.next/standalone ./
