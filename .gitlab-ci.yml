@@ -1,0 +1,104 @@
+# GitLab CI/CD Pipeline — ShelfHaven
+# Runner: docker executor with host socket mount (no DinD needed)
+
+stages:
+  - security
+  - test
+  - build
+  - scan
+  - mirror
+
+variables:
+  DOCKER_PULL_POLICY: always
+  TRIVY_DISABLE_VEX_NOTICE: "true"
+
+# ------------------ Security Stage ------------------
+
+npm-audit:
+  stage: security
+  image: node:22-slim
+  script:
+    - npm audit --audit-level=high
+  allow_failure: false
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+
+secret-scan:
+  stage: security
+  image: python:3.12-slim
+  script:
+    - pip install --quiet trufflehog
+    - trufflehog filesystem . --only-verified --fail
+  allow_failure: false
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+
+# ------------------ Test Stage ------------------
+
+npm-build-check:
+  stage: test
+  image: node:22-slim
+  script:
+    - npm ci --legacy-peer-deps --silent
+    - npx prisma generate
+    - npx tsc --noEmit
+  allow_failure: false
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+
+unit-tests:
+  stage: test
+  image: node:22-slim
+  script:
+    - npm ci --legacy-peer-deps --silent
+    - npx prisma generate
+    - npx vitest run
+  allow_failure: false
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+
+# ------------------ Build Stage ------------------
+
+build-app:
+  stage: build
+  image: docker:27
+  script:
+    - docker build -t shelfhaven:${CI_COMMIT_SHORT_SHA} -t shelfhaven:latest .
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+
+# ------------------ Scan Stage ------------------
+
+trivy-scan:
+  stage: scan
+  image:
+    name: aquasec/trivy:latest
+    entrypoint: [""]
+  needs:
+    - build-app
+  script:
+    - trivy image --severity HIGH,CRITICAL --exit-code 1 --ignore-unfixed --format table shelfhaven:${CI_COMMIT_SHORT_SHA}
+  allow_failure: false
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+
+# ------------------ Mirror to GitHub ------------------
+
+github-mirror:
+  stage: mirror
+  image: alpine:3.20
+  needs:
+    - npm-audit
+    - secret-scan
+    - npm-build-check
+    - unit-tests
+    - trivy-scan
+  before_script:
+    - apk add --no-cache git
+  script:
+    - git remote add github https://${GITHUB_USER}:${GITHUB_TOKEN}@github.com/${GITHUB_USER}/ShelfHaven.git || true
+    - git push github HEAD:master --force
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
