@@ -28,7 +28,10 @@ RUN npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --scri
 # Stage: production (minimal image)
 FROM node:22-alpine AS production
 WORKDIR /app
-RUN npm install -g npm@latest && npm cache clean --force
+RUN npm install -g npm@latest \
+    && cd /usr/local/lib/node_modules/npm \
+    && npm install tar@7.5.10 --save \
+    && npm cache clean --force
 RUN addgroup -g 1001 -S appgroup && adduser -S appuser -u 1001
 
 COPY --from=build --chown=appuser:appgroup /app/.next/standalone ./
