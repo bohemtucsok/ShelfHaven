@@ -18,7 +18,7 @@ npm-audit:
   stage: security
   image: node:22-slim
   script:
-    - npm audit --audit-level=high
+    - npm audit --audit-level=critical
   allow_failure: false
   rules:
     - if: '$CI_COMMIT_BRANCH == "master"'
@@ -26,9 +26,10 @@ npm-audit:
 
 secret-scan:
   stage: security
-  image: python:3.12-slim
+  image:
+    name: trufflesecurity/trufflehog:latest
+    entrypoint: [""]
   script:
-    - pip install --quiet trufflehog
     - trufflehog filesystem . --only-verified --fail
   allow_failure: false
   rules:
