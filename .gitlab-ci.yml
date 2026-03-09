@@ -18,7 +18,7 @@ npm-audit:
   stage: security
   image: node:22-slim
   script:
-    - npm audit --audit-level=critical
+    - npm audit --audit-level=high
   allow_failure: false
   rules:
     - if: '$CI_COMMIT_BRANCH == "master"'

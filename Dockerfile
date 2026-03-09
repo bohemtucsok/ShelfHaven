@@ -2,7 +2,7 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm install
+RUN npm ci --legacy-peer-deps
 
 # Stage: dev (hot reload, development)
 FROM node:22-alpine AS dev
