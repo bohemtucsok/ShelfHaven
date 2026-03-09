@@ -28,10 +28,6 @@ RUN npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --scri
 # Stage: production (minimal image)
 FROM node:22-alpine AS production
 WORKDIR /app
-RUN npm install -g npm@latest \
-    && cd /usr/local/lib/node_modules/npm \
-    && npm install tar@7.5.10 --save \
-    && npm cache clean --force
 RUN addgroup -g 1001 -S appgroup && adduser -S appuser -u 1001
 
 COPY --from=build --chown=appuser:appgroup /app/.next/standalone ./
@@ -40,11 +36,12 @@ COPY --from=build --chown=appuser:appgroup /app/public ./public
 COPY --from=build --chown=appuser:appgroup /app/prisma ./prisma
 COPY --from=build --chown=appuser:appgroup /app/src/generated ./src/generated
 COPY --from=build --chown=appuser:appgroup /app/docker-entrypoint.sh ./docker-entrypoint.sh
-# Install mariadb + bcryptjs in isolated temp dir (avoids bloating image with npm cache + standalone deps)
+# Install mariadb + bcryptjs, then remove npm/npx (not needed at runtime, eliminates tar CVEs)
 RUN mkdir /tmp/dbpkg && cd /tmp/dbpkg && npm init -y >/dev/null 2>&1 \
     && npm install mariadb bcryptjs >/dev/null 2>&1 \
     && cp -r /tmp/dbpkg/node_modules/* /app/node_modules/ \
-    && rm -rf /tmp/dbpkg /root/.npm
+    && rm -rf /tmp/dbpkg /root/.npm \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
 USER appuser
 ENV NODE_ENV=production
