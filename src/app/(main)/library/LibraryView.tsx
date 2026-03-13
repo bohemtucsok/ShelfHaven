@@ -74,6 +74,16 @@ export default function LibraryView({ initialBooks, initialCategories, initialAu
     }
   }, [session]);
 
+  // Switch view and persist preference
+  const switchView = useCallback((mode: ViewMode) => {
+    setViewMode(mode);
+    fetch("/api/user/profile", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ defaultView: mode }),
+    }).catch(() => {});
+  }, []);
+
   // Sync local search with URL param
   useEffect(() => {
     setSearchQuery(urlQuery);
@@ -321,7 +331,7 @@ export default function LibraryView({ initialBooks, initialCategories, initialAu
         {/* View toggle */}
         <div className="flex rounded-lg border border-amber-800/20 bg-white p-0.5 dark:bg-[var(--bg-input)] dark:border-[var(--border)]">
           <button
-            onClick={() => setViewMode("shelf")}
+            onClick={() => switchView("shelf")}
             className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
               viewMode === "shelf"
                 ? "bg-amber-700 text-white"
@@ -331,7 +341,7 @@ export default function LibraryView({ initialBooks, initialCategories, initialAu
             {t("shelfView")}
           </button>
           <button
-            onClick={() => setViewMode("grid")}
+            onClick={() => switchView("grid")}
             className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
               viewMode === "grid"
                 ? "bg-amber-700 text-white"
