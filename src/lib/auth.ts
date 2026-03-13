@@ -213,7 +213,25 @@ function buildAuthConfig(oidcConfig: OidcConfig | null) {
         }
         return session;
       },
-      async jwt({ token, user }: { token: any; user?: any; account?: any }) {
+      async jwt({ token, user, trigger }: { token: any; user?: any; account?: any; trigger?: string }) {
+        if (trigger === "update" && token.sub) {
+          // Session update requested (e.g. view mode change) — refresh from DB
+          try {
+            const dbUser = await prisma.user.findUnique({
+              where: { id: token.sub as string },
+              select: { role: true, language: true, theme: true, defaultView: true },
+            });
+            if (dbUser) {
+              token.role = dbUser.role || "USER";
+              token.language = dbUser.language || "hu";
+              token.theme = dbUser.theme || "system";
+              token.defaultView = dbUser.defaultView || "shelf";
+            }
+          } catch (e) {
+            console.error("[auth] jwt update error:", e);
+          }
+          return token;
+        }
         if (user) {
           // Initial login - set user data
           token.sub = user.id;
@@ -242,16 +260,20 @@ function buildAuthConfig(oidcConfig: OidcConfig | null) {
 
           if (Date.now() - lastVerified > VERIFY_INTERVAL) {
             try {
-              const exists = await prisma.user.findUnique({
+              const dbUser = await prisma.user.findUnique({
                 where: { id: token.sub as string },
-                select: { id: true },
+                select: { id: true, role: true, language: true, theme: true, defaultView: true },
               });
-              if (!exists) {
+              if (!dbUser) {
                 console.warn("[auth] User no longer exists in DB, invalidating token:", token.sub);
                 // Return empty token - NextAuth will set a new cookie without sub
                 // Next middleware check will see no sub → redirect to login
                 return {} as typeof token;
               }
+              token.role = dbUser.role || "USER";
+              token.language = dbUser.language || "hu";
+              token.theme = dbUser.theme || "system";
+              token.defaultView = dbUser.defaultView || "shelf";
               token.lastVerified = Date.now();
             } catch (e) {
               // DB error - don't invalidate, just skip this verification

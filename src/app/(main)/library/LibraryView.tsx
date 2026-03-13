@@ -50,7 +50,7 @@ export default function LibraryView({ initialBooks, initialCategories, initialAu
   const urlQuery = searchParams.get("q") || "";
   const urlCategory = searchParams.get("category") || "";
 
-  const { data: session } = useSession();
+  const { data: session, update: updateSession } = useSession();
   const { isBookOffline } = useOfflineBooks();
   const [books, setBooks] = useState<Book[]>(initialBooks || []);
   const [categories, setCategories] = useState<Category[]>(initialCategories || []);
@@ -81,8 +81,8 @@ export default function LibraryView({ initialBooks, initialCategories, initialAu
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ defaultView: mode }),
-    }).catch(() => {});
-  }, []);
+    }).then(() => updateSession()).catch(() => {});
+  }, [updateSession]);
 
   // Sync local search with URL param
   useEffect(() => {
