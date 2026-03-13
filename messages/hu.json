@@ -160,6 +160,7 @@
     "refreshLibrary": "Frissítés"
   },
   "upload": {
+    "backToLibrary": "Vissza a könyvtárba",
     "title": "Könyv feltöltése",
     "supportedFormats": "Támogatott formátumok: EPUB, PDF, MOBI, AZW3, FB2, CBR, CBZ, DJVU",
     "dropZone": "Húzd ide a fájlt, vagy kattints a választáshoz",
@@ -295,7 +296,11 @@
     "saveToLibrary": "Mentés a könyvtáramba",
     "savedToLibrary": "Könyvtáramban",
     "removedFromLibrary": "Eltávolítva a könyvtáramból",
-    "saveToLibraryFailed": "Nem sikerült menteni"
+    "saveToLibraryFailed": "Nem sikerült menteni",
+    "changeCover": "Borítókép módosítása",
+    "coverUpdated": "Borítókép frissítve!",
+    "coverUpdateFailed": "Nem sikerült frissíteni a borítóképet",
+    "coverUploading": "Feltöltés..."
   },
   "reader": {
     "conversionInProgress": "Az EPUB konverzió még folyamatban van. Kérlek várj, és próbáld újra.",

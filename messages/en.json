@@ -160,6 +160,7 @@
     "refreshLibrary": "Refresh"
   },
   "upload": {
+    "backToLibrary": "Back to library",
     "title": "Upload Book",
     "supportedFormats": "Supported formats: EPUB, PDF, MOBI, AZW3, FB2, CBR, CBZ, DJVU",
     "dropZone": "Drag your file here, or click to browse",
@@ -295,7 +296,11 @@
     "saveToLibrary": "Save to my library",
     "savedToLibrary": "In my library",
     "removedFromLibrary": "Removed from library",
-    "saveToLibraryFailed": "Failed to save"
+    "saveToLibraryFailed": "Failed to save",
+    "changeCover": "Change cover",
+    "coverUpdated": "Cover updated!",
+    "coverUpdateFailed": "Failed to update cover",
+    "coverUploading": "Uploading..."
   },
   "reader": {
     "conversionInProgress": "EPUB conversion is still in progress. Please wait and try again.",

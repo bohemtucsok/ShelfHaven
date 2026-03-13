@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
@@ -156,6 +156,8 @@ export default function BookDetail({ bookId, initialBook }: BookDetailProps) {
   const [showShelfPicker, setShowShelfPicker] = useState(false);
   const [addingToShelf, setAddingToShelf] = useState<string | null>(null);
   const [reconverting, setReconverting] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   // Metadata search state
   const [showMetadataSearch, setShowMetadataSearch] = useState(false);
@@ -260,6 +262,36 @@ export default function BookDetail({ bookId, initialBook }: BookDetailProps) {
       .then((data) => setShelves(data))
       .catch(() => {});
   }, [session]);
+
+  async function handleCoverUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !book) return;
+
+    setUploadingCover(true);
+    try {
+      const formData = new FormData();
+      formData.append("cover", file);
+
+      const res = await fetch(`/api/books/${bookId}/cover`, {
+        method: "POST",
+        headers: { "x-csrf-token": "1" },
+        body: formData,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setBook({ ...book, coverUrl: `${data.coverUrl}?t=${Date.now()}`, blurHash: data.blurHash });
+        toast.success(t("coverUpdated"));
+      } else {
+        toast.error(t("coverUpdateFailed"));
+      }
+    } catch {
+      toast.error(t("coverUpdateFailed"));
+    } finally {
+      setUploadingCover(false);
+      if (coverInputRef.current) coverInputRef.current.value = "";
+    }
+  }
 
   function startEditing() {
     if (!book) return;
@@ -645,7 +677,7 @@ export default function BookDetail({ bookId, initialBook }: BookDetailProps) {
       >
         <div className="flex flex-col sm:flex-row">
           {/* Cover */}
-          <div className="relative aspect-[2/3] w-full bg-gradient-to-br from-amber-800 to-amber-950 sm:w-64 sm:shrink-0">
+          <div className="group relative aspect-[2/3] w-full bg-gradient-to-br from-amber-800 to-amber-950 sm:w-64 sm:shrink-0">
             {book.coverUrl ? (
               <Image
                 src={book.coverUrl}
@@ -662,6 +694,34 @@ export default function BookDetail({ bookId, initialBook }: BookDetailProps) {
                   {book.title}
                 </p>
               </div>
+            )}
+            {/* Cover upload overlay (owner only) */}
+            {book.isOwner && (
+              <>
+                <input
+                  ref={coverInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleCoverUpload}
+                />
+                <button
+                  onClick={() => coverInputRef.current?.click()}
+                  disabled={uploadingCover}
+                  className="absolute inset-0 flex flex-col items-center justify-center bg-black/0 opacity-0 transition-all group-hover:bg-black/50 group-hover:opacity-100"
+                >
+                  {uploadingCover ? (
+                    <div className="h-8 w-8 animate-spin rounded-full border-3 border-white/30 border-t-white" />
+                  ) : (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+                      </svg>
+                      <span className="mt-1 text-xs font-medium text-white">{t("changeCover")}</span>
+                    </>
+                  )}
+                </button>
+              </>
             )}
           </div>
 
