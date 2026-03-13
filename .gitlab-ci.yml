@@ -6,11 +6,13 @@ stages:
   - test
   - build
   - scan
+  - publish
   - mirror
 
 variables:
   DOCKER_PULL_POLICY: always
   TRIVY_DISABLE_VEX_NOTICE: "true"
+  HARBOR_IMAGE: ${HARBOR_REGISTRY}/shelfhaven/app
 
 # ------------------ Security Stage ------------------
 
@@ -85,6 +87,23 @@ trivy-scan:
   rules:
     - if: '$CI_COMMIT_BRANCH == "master"'
 
+# ------------------ Publish to Harbor Registry ------------------
+
+publish-harbor:
+  stage: publish
+  image: docker:27
+  needs:
+    - build-app
+    - trivy-scan
+  script:
+    - echo "${HARBOR_PASSWORD}" | docker login ${HARBOR_REGISTRY} -u ${HARBOR_USER} --password-stdin
+    - docker tag shelfhaven:${CI_COMMIT_SHORT_SHA} ${HARBOR_IMAGE}:${CI_COMMIT_SHORT_SHA}
+    - docker tag shelfhaven:${CI_COMMIT_SHORT_SHA} ${HARBOR_IMAGE}:latest
+    - docker push ${HARBOR_IMAGE}:${CI_COMMIT_SHORT_SHA}
+    - docker push ${HARBOR_IMAGE}:latest
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+
 # ------------------ Mirror to GitHub ------------------
 
 github-mirror:
@@ -96,6 +115,7 @@ github-mirror:
     - npm-build-check
     - unit-tests
     - trivy-scan
+    - publish-harbor
   before_script:
     - apk add --no-cache git
   script:
