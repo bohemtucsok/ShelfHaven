@@ -30,6 +30,25 @@
 
 ---
 
+<table>
+<tr>
+<td width="80" align="center">
+  <img src="https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Android" />
+</td>
+<td>
+  <strong>📱 ShelfHaven Mobil App — Hamarosan!</strong><br/>
+  Natív Android alkalmazás Kotlin &amp; Jetpack Compose technológiával.<br/>
+  Szinkronizálja a könyvtáradat, olvasási előrehaladásodat és könyvjelzőidet minden eszközödön.
+</td>
+<td width="200" align="center">
+  <img src="https://img.shields.io/badge/fejlesztés-85%25-yellow?style=flat-square" alt="85%" /><br/>
+  <sub>█████████████░░ 85%</sub>
+</td>
+</tr>
+</table>
+
+---
+
 ## Miért ShelfHaven?
 
 Az e-könyveid szétszórva hevernek különböző eszközökön. Szeretnél egy szép, saját hosztolt könyvtárat, ahol feltöltheted, rendszerezheted és olvashatod őket — igazi könyvespolc hangulattal, nem unalmas fájllistával.
@@ -366,6 +385,7 @@ ShelfHaven/
 
 | Verzió | Dátum | Változások |
 |---------|------|---------|
+| **v3.5** | 2026-03 | Olvasó keresés és slider, nézet mód mentés, borítókép feltöltés, frissítés gomb, Harbor CI/CD, mobil app társalkalmazás |
 | **v3.4** | 2026-02 | SavedBook (mások könyveinek mentése), auth cookie HTTPS javítás, polc dropdown javítás |
 | **v3.3** | 2026-02 | Admin mentés és visszaállítás (ZIP), biztonsági audit, email/regisztráció kapcsolók |
 | **v3.2** | 2026-02 | Közösségi: Követés, Komment, Tevékenység, Felfedezés |

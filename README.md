@@ -30,6 +30,25 @@
 
 ---
 
+<table>
+<tr>
+<td width="80" align="center">
+  <img src="https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Android" />
+</td>
+<td>
+  <strong>📱 ShelfHaven Mobile App — Coming Soon!</strong><br/>
+  Native Android companion app built with Kotlin &amp; Jetpack Compose.<br/>
+  Syncs your library, reading progress, and bookmarks across all your devices.
+</td>
+<td width="200" align="center">
+  <img src="https://img.shields.io/badge/development-85%25-yellow?style=flat-square" alt="85%" /><br/>
+  <sub>█████████████░░ 85%</sub>
+</td>
+</tr>
+</table>
+
+---
+
 ## Why ShelfHaven?
 
 You have a collection of e-books scattered across devices. You want a beautiful, self-hosted library where you can upload, organize, and read them — with a cozy bookshelf feel, not a boring file list.
@@ -366,6 +385,7 @@ ShelfHaven/
 
 | Version | Date | Changes |
 |---------|------|---------|
+| **v3.5** | 2026-03 | Reader search & slider, view mode persistence, cover upload, refresh button, Harbor CI/CD, mobile app companion |
 | **v3.4** | 2026-02 | SavedBook (save others' books), auth cookie HTTPS fix, shelf dropdown fix |
 | **v3.3** | 2026-02 | Admin backup & restore (ZIP), security audit, email/registration toggles |
 | **v3.2** | 2026-02 | Social: Follow, Comment, Activity, Discover |
