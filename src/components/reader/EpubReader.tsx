@@ -361,7 +361,12 @@ export default function EpubReader({ bookId, url, initialCfi, onProgressChange, 
   const [showHighlightPopup, setShowHighlightPopup] = useState(false);
   const [selectedCfiRange, setSelectedCfiRange] = useState("");
   const [selectedText, setSelectedText] = useState("");
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Array<{ cfi: string; excerpt: string }>>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const readingStartRef = useRef<number>(Date.now());
 
   // Keep refs in sync with state
@@ -969,6 +974,52 @@ export default function EpubReader({ bookId, url, initialCfi, onProgressChange, 
     setShowToc(false);
   }
 
+  // Jump to percentage via slider
+  function handleSliderJump(pct: number) {
+    const book = bookRef.current;
+    if (!book || !locationsReadyRef.current) return;
+    const cfi = book.locations.cfiFromPercentage(pct / 100);
+    if (cfi) {
+      renditionRef.current?.display(cfi);
+    }
+  }
+
+  // Search within the book
+  async function handleSearch(query: string) {
+    const book = bookRef.current;
+    if (!book || !query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    setIsSearching(true);
+    try {
+      const results: Array<{ cfi: string; excerpt: string }> = [];
+      const spine = book.spine;
+      // epub.js: iterate spine items and search each section
+      for (let i = 0; i < spine.length; i++) {
+        const item = spine.get(i);
+        if (!item) continue;
+        await item.load(book.load.bind(book));
+        const found = await item.find(query.trim());
+        if (found && found.length > 0) {
+          for (const match of found) {
+            results.push({ cfi: match.cfi, excerpt: match.excerpt });
+          }
+        }
+        item.unload();
+        if (results.length >= 100) break; // limit results
+      }
+      setSearchResults(results);
+    } catch {
+      setSearchResults([]);
+    }
+    setIsSearching(false);
+  }
+
+  function goToSearchResult(cfi: string) {
+    renditionRef.current?.display(cfi);
+  }
+
   function handlePrev() {
     renditionRef.current?.prev();
   }
@@ -1009,6 +1060,19 @@ export default function EpubReader({ bookId, url, initialCfi, onProgressChange, 
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h6a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
+            </svg>
+          </button>
+          <button
+            onClick={() => { setShowSearch(!showSearch); setShowToc(false); }}
+            className={`rounded-lg p-2 text-sm transition-colors ${
+              showSearch
+                ? isDarkTheme ? "bg-amber-800 text-amber-100" : "bg-amber-200 text-amber-900"
+                : isDarkTheme ? "text-amber-200 hover:bg-amber-900/30" : "text-amber-800 hover:bg-amber-100"
+            }`}
+            title={t("search")}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
             </svg>
           </button>
         </div>
@@ -1279,6 +1343,93 @@ export default function EpubReader({ bookId, url, initialCfi, onProgressChange, 
           </div>
         )}
 
+        {/* Search panel */}
+        {showSearch && (
+          <div className={`absolute inset-y-0 left-0 z-20 flex w-80 flex-col border-r shadow-lg ${
+            isDarkTheme ? "border-amber-900/30 bg-[#211a12]" : "border-amber-200 bg-amber-50"
+          }`}>
+            <div className="flex items-center gap-2 border-b p-3" style={{ borderColor: isDarkTheme ? "rgba(217,119,6,0.2)" : "rgba(217,119,6,0.3)" }}>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  // Debounced search
+                  if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+                  searchTimerRef.current = setTimeout(() => {
+                    handleSearch(e.target.value);
+                  }, 500);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+                    handleSearch(searchQuery);
+                  }
+                  if (e.key === "Escape") {
+                    setShowSearch(false);
+                  }
+                }}
+                placeholder={t("searchPlaceholder")}
+                className={`flex-1 rounded-lg px-3 py-2 text-sm outline-none ${
+                  isDarkTheme
+                    ? "bg-amber-900/30 text-amber-100 placeholder-amber-600"
+                    : "bg-white text-amber-900 placeholder-amber-400 border border-amber-200"
+                }`}
+                autoFocus
+              />
+              <button
+                onClick={() => { setShowSearch(false); setSearchQuery(""); setSearchResults([]); }}
+                className={`rounded-lg p-2 text-sm transition-colors ${
+                  isDarkTheme ? "text-amber-400 hover:bg-amber-900/30" : "text-amber-600 hover:bg-amber-100"
+                }`}
+                title={t("closeSearch")}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3">
+              {isSearching && (
+                <p className={`text-center text-sm ${isDarkTheme ? "text-amber-400" : "text-amber-600"}`}>
+                  {t("searching")}
+                </p>
+              )}
+              {!isSearching && searchQuery && searchResults.length === 0 && (
+                <p className={`text-center text-sm italic ${isDarkTheme ? "text-amber-500/60" : "text-amber-700/50"}`}>
+                  {t("noSearchResults")}
+                </p>
+              )}
+              {!isSearching && searchResults.length > 0 && (
+                <>
+                  <p className={`mb-2 text-xs font-semibold ${isDarkTheme ? "text-amber-400" : "text-amber-600"}`}>
+                    {t("searchResults", { count: searchResults.length })}
+                  </p>
+                  <ul className="space-y-1">
+                    {searchResults.map((result, idx) => (
+                      <li key={`${result.cfi}-${idx}`}>
+                        <button
+                          onClick={() => goToSearchResult(result.cfi)}
+                          className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+                            isDarkTheme ? "text-amber-300 hover:bg-amber-900/40" : "text-amber-800 hover:bg-amber-100"
+                          }`}
+                        >
+                          <span dangerouslySetInnerHTML={{
+                            __html: result.excerpt.replace(
+                              new RegExp(`(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'),
+                              `<mark class="${isDarkTheme ? 'bg-amber-700/50 text-amber-100' : 'bg-amber-200 text-amber-900'} rounded px-0.5">$1</mark>`
+                            )
+                          }} />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Prev button */}
         <button
           onClick={handlePrev}
@@ -1379,7 +1530,7 @@ export default function EpubReader({ bookId, url, initialCfi, onProgressChange, 
         )}
       </div>
 
-      {/* Bottom progress bar */}
+      {/* Bottom progress slider */}
       <div
         className={`flex shrink-0 items-center gap-3 border-t px-4 py-2 ${
           isDarkTheme
@@ -1387,16 +1538,29 @@ export default function EpubReader({ bookId, url, initialCfi, onProgressChange, 
             : "border-amber-200 bg-amber-50/90"
         }`}
       >
-        <div className="flex-1">
-          <div className={`h-1.5 overflow-hidden rounded-full ${isDarkTheme ? "bg-amber-900/30" : "bg-amber-200/50"}`}>
-            <div
-              className="h-full rounded-full bg-amber-700 transition-all duration-300"
-              style={{ width: `${percentage}%` }}
-            />
-          </div>
-        </div>
-        <span className={`text-xs ${isDarkTheme ? "text-amber-400" : "text-amber-600"}`}>
+        <span className={`text-xs tabular-nums ${isDarkTheme ? "text-amber-400" : "text-amber-600"}`}>
           {Math.round(percentage)}%
+        </span>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          step={0.5}
+          value={percentage}
+          onChange={(e) => {
+            const val = parseFloat(e.target.value);
+            setPercentage(val);
+          }}
+          onMouseUp={(e) => handleSliderJump(parseFloat((e.target as HTMLInputElement).value))}
+          onTouchEnd={(e) => handleSliderJump(parseFloat((e.target as HTMLInputElement).value))}
+          className="slider-progress flex-1"
+          title={t("goToPage")}
+          style={{
+            accentColor: isDarkTheme ? "#d97706" : "#92400e",
+          }}
+        />
+        <span className={`text-xs ${isDarkTheme ? "text-amber-400" : "text-amber-600"}`}>
+          100%
         </span>
       </div>
     </div>

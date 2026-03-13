@@ -122,3 +122,43 @@ body {
 .dark .hl-green { background-color: rgba(34, 197, 94, 0.4) !important; }
 .dark .hl-blue { background-color: rgba(59, 130, 246, 0.4) !important; }
 .dark .hl-pink { background-color: rgba(236, 72, 153, 0.4) !important; }
+
+/* Reader progress slider */
+.slider-progress {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(217, 119, 6, 0.2);
+  outline: none;
+  cursor: pointer;
+}
+.slider-progress::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #92400e;
+  cursor: pointer;
+  border: 2px solid #fefbf6;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: transform 0.15s;
+}
+.slider-progress::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+.slider-progress::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #92400e;
+  cursor: pointer;
+  border: 2px solid #fefbf6;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+.slider-progress::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(217, 119, 6, 0.2);
+}

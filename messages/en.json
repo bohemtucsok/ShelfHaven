@@ -337,7 +337,14 @@
     "colorBlue": "Blue",
     "colorPink": "Pink",
     "offlineNotAvailable": "This book is not available offline.",
-    "loadingOffline": "Loading offline book..."
+    "loadingOffline": "Loading offline book...",
+    "search": "Search",
+    "searchPlaceholder": "Search in book...",
+    "searching": "Searching...",
+    "searchResults": "Results ({count})",
+    "noSearchResults": "No results found",
+    "closeSearch": "Close search",
+    "goToPage": "Go to position"
   },
   "profile": {
     "loadingProfile": "Loading profile...",

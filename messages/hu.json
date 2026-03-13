@@ -337,7 +337,14 @@
     "colorBlue": "Kék",
     "colorPink": "Rózsaszín",
     "offlineNotAvailable": "Ez a könyv nem érhető el offline.",
-    "loadingOffline": "Offline könyv betöltése..."
+    "loadingOffline": "Offline könyv betöltése...",
+    "search": "Keresés",
+    "searchPlaceholder": "Keresés a könyvben...",
+    "searching": "Keresés...",
+    "searchResults": "Találatok ({count})",
+    "noSearchResults": "Nincs találat",
+    "closeSearch": "Keresés bezárása",
+    "goToPage": "Ugrás a pozícióra"
   },
   "profile": {
     "loadingProfile": "Profil betöltése...",
