@@ -122,7 +122,7 @@ github-mirror:
     - git config user.email "ci@shelfhaven"
     - git config user.name "CI"
     - git rm --cached .gitlab-ci.yml
-    - git commit -m "mirror — exclude CI config"
+    - git commit -m "Synced from GitLab"
     - git remote add github https://${GITHUB_USER}:${GITHUB_TOKEN}@github.com/${GITHUB_USER}/ShelfHaven.git || true
     - git push github HEAD:master --force
   rules:
