@@ -156,7 +156,8 @@
     "statusFinished": "Befejezett",
     "clearFilters": "Szűrők törlése",
     "statusSaved": "Mentett könyvek",
-    "savedBadge": "Mentett"
+    "savedBadge": "Mentett",
+    "refreshLibrary": "Frissítés"
   },
   "upload": {
     "title": "Könyv feltöltése",

@@ -107,6 +107,40 @@ export default function LibraryView({ initialBooks, initialCategories, initialAu
       .catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Reusable fetch function
+  const fetchBooks = useCallback(async () => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams();
+      if (urlQuery) params.set("q", urlQuery);
+      if (urlCategory) params.set("category", urlCategory);
+      if (selectedAuthor) params.set("author", selectedAuthor);
+      if (sortMode !== "newest") params.set("sort", sortMode);
+      if (format) params.set("format", format);
+      if (dateRange) params.set("dateRange", dateRange);
+      if (minRating) params.set("minRating", minRating);
+      if (status) params.set("status", status);
+
+      const booksUrl = `/api/books${params.toString() ? `?${params}` : ""}`;
+      const booksRes = await fetch(booksUrl);
+      const booksData = await booksRes.json();
+      setBooks(booksData.books || []);
+      setAuthors(booksData.authors || []);
+
+      // Auto-select category tab if URL has category slug
+      if (urlCategory && categories.length > 0) {
+        const matchingCat = categories.find((c) => c.slug === urlCategory);
+        if (matchingCat) {
+          setSelectedCategory(matchingCat.id);
+        }
+      }
+    } catch {
+      console.error("Failed to fetch library data");
+    } finally {
+      setLoading(false);
+    }
+  }, [urlQuery, urlCategory, selectedAuthor, sortMode, format, dateRange, minRating, status, categories]);
+
   // Fetch books when filters change
   useEffect(() => {
     // Skip initial fetch if server-side data provided
@@ -114,40 +148,8 @@ export default function LibraryView({ initialBooks, initialCategories, initialAu
       skipInitialFetch.current = false;
       return;
     }
-    async function fetchBooks() {
-      try {
-        setLoading(true);
-        const params = new URLSearchParams();
-        if (urlQuery) params.set("q", urlQuery);
-        if (urlCategory) params.set("category", urlCategory);
-        if (selectedAuthor) params.set("author", selectedAuthor);
-        if (sortMode !== "newest") params.set("sort", sortMode);
-        if (format) params.set("format", format);
-        if (dateRange) params.set("dateRange", dateRange);
-        if (minRating) params.set("minRating", minRating);
-        if (status) params.set("status", status);
-
-        const booksUrl = `/api/books${params.toString() ? `?${params}` : ""}`;
-        const booksRes = await fetch(booksUrl);
-        const booksData = await booksRes.json();
-        setBooks(booksData.books || []);
-        setAuthors(booksData.authors || []);
-
-        // Auto-select category tab if URL has category slug
-        if (urlCategory && categories.length > 0) {
-          const matchingCat = categories.find((c) => c.slug === urlCategory);
-          if (matchingCat) {
-            setSelectedCategory(matchingCat.id);
-          }
-        }
-      } catch {
-        console.error("Failed to fetch library data");
-      } finally {
-        setLoading(false);
-      }
-    }
     fetchBooks();
-  }, [urlQuery, urlCategory, selectedAuthor, sortMode, format, dateRange, minRating, status]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fetchBooks]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Compute user-specific category counts from own books
   const userCategories = useMemo(() => {
@@ -245,15 +247,28 @@ export default function LibraryView({ initialBooks, initialCategories, initialAu
           </p>
         </div>
 
-        <Link
-          href="/upload"
-          className="inline-flex items-center gap-2 rounded-lg bg-amber-700 px-5 py-2.5 font-semibold text-white shadow-md transition-colors hover:bg-amber-600"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-          </svg>
-          {t("uploadBook")}
-        </Link>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => fetchBooks()}
+            disabled={loading}
+            className="inline-flex items-center gap-2 rounded-lg border border-amber-700/30 px-4 py-2.5 font-medium text-amber-700 transition-colors hover:bg-amber-100 dark:text-[var(--accent-gold)] dark:border-[var(--border)] dark:hover:bg-amber-900/20"
+            title={t("refreshLibrary")}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${loading ? "animate-spin" : ""}`} viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+            </svg>
+            {t("refreshLibrary")}
+          </button>
+          <Link
+            href="/upload"
+            className="inline-flex items-center gap-2 rounded-lg bg-amber-700 px-5 py-2.5 font-semibold text-white shadow-md transition-colors hover:bg-amber-600"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+            </svg>
+            {t("uploadBook")}
+          </Link>
+        </div>
       </div>
 
       {/* Filters bar */}

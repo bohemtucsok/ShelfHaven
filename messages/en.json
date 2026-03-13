@@ -156,7 +156,8 @@
     "statusFinished": "Finished",
     "clearFilters": "Clear filters",
     "statusSaved": "Saved books",
-    "savedBadge": "Saved"
+    "savedBadge": "Saved",
+    "refreshLibrary": "Refresh"
   },
   "upload": {
     "title": "Upload Book",
