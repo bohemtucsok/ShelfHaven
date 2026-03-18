@@ -33,7 +33,7 @@
     "framer-motion": "^12.34.3",
     "idb-keyval": "^6.2.2",
     "jszip": "^3.10.1",
-    "next": "16.1.6",
+    "next": "16.1.7",
     "next-auth": "^5.0.0-beta.30",
     "next-intl": "^4.8.3",
     "nodemailer": "^7.0.13",
@@ -49,10 +49,13 @@
   },
   "overrides": {
     "serialize-javascript": "^7.0.3",
-    "hono": "^4.12.4",
+    "hono": "^4.12.7",
     "@hono/node-server": "^1.19.10",
     "lodash": "^4.17.22",
-    "tar": "^7.5.10"
+    "tar": "^7.5.10",
+    "undici": "^7.24.4",
+    "flatted": "^3.4.2",
+    "fast-xml-parser": "^5.5.6"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
@@ -67,7 +70,7 @@
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^5.1.4",
     "eslint": "^9",
-    "eslint-config-next": "16.1.6",
+    "eslint-config-next": "16.1.7",
     "jsdom": "^28.1.0",
     "msw": "^2.12.10",
     "prisma": "^7.4.1",
