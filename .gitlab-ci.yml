@@ -77,7 +77,7 @@ build-app:
 trivy-scan:
   stage: scan
   image:
-    name: aquasec/trivy:latest
+    name: aquasecurity/trivy:latest
     entrypoint: [""]
   needs:
     - build-app
