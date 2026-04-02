@@ -38,11 +38,12 @@
 <td>
   <strong>📱 ShelfHaven Mobile App — Coming Soon!</strong><br/>
   Native Android companion app built with Kotlin &amp; Jetpack Compose.<br/>
-  Syncs your library, reading progress, and bookmarks across all your devices.
+  Syncs your library, reading progress, and bookmarks across all your devices.<br/>
+  <sub>🧪 Live testing in progress — Google Play Store release coming soon!</sub>
 </td>
 <td width="200" align="center">
-  <img src="https://img.shields.io/badge/development-85%25-yellow?style=flat-square" alt="85%" /><br/>
-  <sub>█████████████░░ 85%</sub>
+  <img src="https://img.shields.io/badge/development-99%25-brightgreen?style=flat-square" alt="99%" /><br/>
+  <sub>███████████████ 99%</sub>
 </td>
 </tr>
 </table>

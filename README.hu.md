@@ -38,11 +38,12 @@
 <td>
   <strong>📱 ShelfHaven Mobil App — Hamarosan!</strong><br/>
   Natív Android alkalmazás Kotlin &amp; Jetpack Compose technológiával.<br/>
-  Szinkronizálja a könyvtáradat, olvasási előrehaladásodat és könyvjelzőidet minden eszközödön.
+  Szinkronizálja a könyvtáradat, olvasási előrehaladásodat és könyvjelzőidet minden eszközödön.<br/>
+  <sub>🧪 Éles tesztelés folyamatban — hamarosan elérhető a Google Play Store-ban!</sub>
 </td>
 <td width="200" align="center">
-  <img src="https://img.shields.io/badge/fejlesztés-85%25-yellow?style=flat-square" alt="85%" /><br/>
-  <sub>█████████████░░ 85%</sub>
+  <img src="https://img.shields.io/badge/fejlesztés-99%25-brightgreen?style=flat-square" alt="99%" /><br/>
+  <sub>███████████████ 99%</sub>
 </td>
 </tr>
 </table>
