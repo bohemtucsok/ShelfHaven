@@ -68,7 +68,7 @@ build-app:
   stage: build
   image: docker:27
   script:
-    - docker build -t shelfhaven:${CI_COMMIT_SHORT_SHA} -t shelfhaven:latest .
+    - docker build --pull --no-cache -t shelfhaven:${CI_COMMIT_SHORT_SHA} -t shelfhaven:latest .
   rules:
     - if: '$CI_COMMIT_BRANCH == "master"'
 
