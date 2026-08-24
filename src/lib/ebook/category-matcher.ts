@@ -72,31 +72,52 @@ const TOPIC_MAP: Record<string, string> = {
   "react": "React",
 };
 
-// Keywords to detect genres/topics from description text
+// Keywords to detect genres/topics from description text.
+// The patterns use a unicode-aware word start instead of \b: \b never matches in
+// front of an accented letter, so keywords like "életrajz" or "űr" could never fire.
 const DESCRIPTION_CATEGORY_KEYWORDS: Array<{ pattern: RegExp; name: string }> = [
-  { pattern: /\b(regény|novel|irodal|szépiroda)/i, name: "Szépirodalom" },
-  { pattern: /\b(ismeretterjeszt|tudomány|scientific|nonfiction)/i, name: "Ismeretterjesztő" },
-  { pattern: /\b(történel|history|historical|háború|war|csata|battle)/i, name: "Történelem" },
-  { pattern: /\b(programoz|coding|software|algorithm|fejleszt)/i, name: "Informatika" },
-  { pattern: /\b(nyelvtan|grammar|szótár|dictionary|nyelvkönyv|language learning)/i, name: "Nyelvkönyv" },
-  { pattern: /\b(gyerek|children|ifjúsági|young adult|mesekönyv)/i, name: "Gyermekirodalom" },
-  { pattern: /\b(életrajz|biography|autobiography|memoir|önéletrajz)/i, name: "Életrajz" },
-  { pattern: /\b(filozófi|philosophy|philosophical|bölcselet)/i, name: "Filozófia" },
+  { pattern: /(?<![\p{L}\p{N}_])(regény|novel|irodal|szépiroda)/iu, name: "Szépirodalom" },
+  { pattern: /(?<![\p{L}\p{N}_])(ismeretterjeszt|tudomány|scientific|nonfiction)/iu, name: "Ismeretterjesztő" },
+  { pattern: /(?<![\p{L}\p{N}_])(történel|history|historical|háború|war|csata|battle)/iu, name: "Történelem" },
+  { pattern: /(?<![\p{L}\p{N}_])(programoz|coding|software|algorithm|fejleszt)/iu, name: "Informatika" },
+  { pattern: /(?<![\p{L}\p{N}_])(nyelvtan|grammar|szótár|dictionary|nyelvkönyv|language learning)/iu, name: "Nyelvkönyv" },
+  { pattern: /(?<![\p{L}\p{N}_])(gyerek|children|ifjúsági|young adult|mesekönyv)/iu, name: "Gyermekirodalom" },
+  { pattern: /(?<![\p{L}\p{N}_])(életrajz|biography|autobiography|memoir|önéletrajz)/iu, name: "Életrajz" },
+  { pattern: /(?<![\p{L}\p{N}_])(filozófi|philosophy|philosophical|bölcselet)/iu, name: "Filozófia" },
 ];
 
 const DESCRIPTION_TOPIC_KEYWORDS: Array<{ pattern: RegExp; name: string }> = [
-  { pattern: /\b(horror|rémtörténet|rémes|szörny|monster|undead|zombie|vámpír|vampire)/i, name: "Horror" },
-  { pattern: /\b(sci[\s-]?fi|science[\s-]?fiction|űr|space|galax|jövő|future|android|robot|cyberpunk|disztóp|dystop|apokalip|apocalyp|nukleáris|nuclear|radioaktív|radioactive|atombomb|mutáns|mutant|klón|clone)/i, name: "Sci-fi" },
-  { pattern: /\b(fantasy|varázsló|wizard|mági[ac]|magic|sárkány|dragon|tündér|elf|elves|tolkien)/i, name: "Fantasy" },
-  { pattern: /\b(krimi|detective|nyomoz|murder|gyilkos|rejtély|mystery|whodunit|bűnügy)/i, name: "Krimi" },
-  { pattern: /\b(thriller|feszült|suspense|összeesküvés|conspiracy|kémregény|spy)/i, name: "Thriller" },
-  { pattern: /\b(romantikus|romantic|romance|szerelem|love story|szerelmes)/i, name: "Romantikus" },
-  { pattern: /\b(klasszikus|classic|19th century|18th century|viktoriánus|victorian)/i, name: "Klasszikus" },
-  { pattern: /\b(kortárs|contemporary|modern|21st century|mai)/i, name: "Modern" },
-  { pattern: /\b(artificial intelligence|machine learning|mesterséges intelligencia|gépi tanulás|neural network|deep learning)\b/i, name: "AI/ML" },
-  { pattern: /\b(javascript|typescript|node\.?js|frontend|react|angular|vue)/i, name: "JavaScript" },
-  { pattern: /\b(python|django|flask|pandas|numpy)/i, name: "Python" },
+  { pattern: /(?<![\p{L}\p{N}_])(horror|rémtörténet|rémes|szörny|monster|undead|zombie|vámpír|vampire)/iu, name: "Horror" },
+  { pattern: /(?<![\p{L}\p{N}_])(sci[\s-]?fi|science[\s-]?fiction|űr|space|galax|jövő|future|android|robot|cyberpunk|disztóp|dystop|apokalip|apocalyp|nukleáris|nuclear|radioaktív|radioactive|atombomb|mutáns|mutant|klón|clone)/iu, name: "Sci-fi" },
+  { pattern: /(?<![\p{L}\p{N}_])(fantasy|varázsló|wizard|mági[ac]|magic|sárkány|dragon|tündér|elf|elves|tolkien)/iu, name: "Fantasy" },
+  { pattern: /(?<![\p{L}\p{N}_])(krimi|detective|nyomoz|murder|gyilkos|rejtély|mystery|whodunit|bűnügy)/iu, name: "Krimi" },
+  { pattern: /(?<![\p{L}\p{N}_])(thriller|feszült|suspense|összeesküvés|conspiracy|kémregény|spy)/iu, name: "Thriller" },
+  { pattern: /(?<![\p{L}\p{N}_])(romantikus|romantic|romance|szerelem|love story|szerelmes)/iu, name: "Romantikus" },
+  { pattern: /(?<![\p{L}\p{N}_])(klasszikus|classic|19th century|18th century|viktoriánus|victorian)/iu, name: "Klasszikus" },
+  { pattern: /(?<![\p{L}\p{N}_])(kortárs|contemporary|modern|21st century|mai)/iu, name: "Modern" },
+  { pattern: /(?<![\p{L}\p{N}_])(artificial intelligence|machine learning|mesterséges intelligencia|gépi tanulás|neural network|deep learning)(?![\p{L}\p{N}_])/iu, name: "AI/ML" },
+  { pattern: /(?<![\p{L}\p{N}_])(javascript|typescript|node\.?js|frontend|react|angular|vue)/iu, name: "JavaScript" },
+  { pattern: /(?<![\p{L}\p{N}_])(python|django|flask|pandas|numpy)/iu, name: "Python" },
 ];
+
+/**
+ * Collect the mapped Hungarian names for one API category value.
+ * A keyword only counts if no other matched keyword contains it, so the longer,
+ * more specific match wins: "non-fiction" no longer counts as "fiction", and
+ * "science fiction" no longer counts as "science" or "fiction" either.
+ */
+function resolveKeywordNames(lower: string): { categoryNames: string[]; topicNames: string[] } {
+  const categoryKeywords = Object.keys(CATEGORY_MAP).filter((keyword) => lower.includes(keyword));
+  const topicKeywords = Object.keys(TOPIC_MAP).filter((keyword) => lower.includes(keyword));
+  const allKeywords = [...categoryKeywords, ...topicKeywords];
+  const isCoveredByLonger = (keyword: string) =>
+    allKeywords.some((other) => other !== keyword && other.includes(keyword));
+
+  return {
+    categoryNames: categoryKeywords.filter((k) => !isCoveredByLonger(k)).map((k) => CATEGORY_MAP[k]),
+    topicNames: topicKeywords.filter((k) => !isCoveredByLonger(k)).map((k) => TOPIC_MAP[k]),
+  };
+}
 
 /**
  * Match categories and topics from metadata search result.
@@ -120,24 +141,21 @@ export function matchCategoriesAndTopics(
   // 1. Match from API categories field
   for (const apiCat of apiCategories) {
     const lower = apiCat.toLowerCase();
+    const keywordNames = resolveKeywordNames(lower);
 
-    for (const [pattern, hunName] of Object.entries(CATEGORY_MAP)) {
-      if (lower.includes(pattern)) {
-        const match = categories.find((c) => c.name === hunName);
-        if (match && !matchedCategoryIds.includes(match.id)) {
-          matchedCategoryIds.push(match.id);
-          matchedCategoryNames.push(match.name);
-        }
+    for (const hunName of keywordNames.categoryNames) {
+      const match = categories.find((c) => c.name === hunName);
+      if (match && !matchedCategoryIds.includes(match.id)) {
+        matchedCategoryIds.push(match.id);
+        matchedCategoryNames.push(match.name);
       }
     }
 
-    for (const [pattern, hunName] of Object.entries(TOPIC_MAP)) {
-      if (lower.includes(pattern)) {
-        const match = topics.find((tp) => tp.name === hunName);
-        if (match && !matchedTopicIds.includes(match.id)) {
-          matchedTopicIds.push(match.id);
-          matchedTopicNames.push(match.name);
-        }
+    for (const hunName of keywordNames.topicNames) {
+      const match = topics.find((tp) => tp.name === hunName);
+      if (match && !matchedTopicIds.includes(match.id)) {
+        matchedTopicIds.push(match.id);
+        matchedTopicNames.push(match.name);
       }
     }
 
