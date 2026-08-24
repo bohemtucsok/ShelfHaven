@@ -237,27 +237,73 @@ describe("matchCategoriesAndTopics - edge cases", () => {
   });
 });
 
-// These cases pin down behaviour that is currently surprising. They are here so a
-// deliberate fix shows up as a failing test instead of silently changing results.
-describe("matchCategoriesAndTopics - documented current behaviour", () => {
-  it('treats "non-fiction" as fiction too, because the keyword match is a substring match', () => {
+describe("matchCategoriesAndTopics - longer keyword wins", () => {
+  it('does not treat "non-fiction" as fiction', () => {
     const result = match({ apiCategories: ["Non-Fiction"] });
-    expect(result.categoryNames).toEqual(["Szépirodalom", "Ismeretterjesztő"]);
+    expect(result.categoryNames).toEqual(["Ismeretterjesztő"]);
+    expect(result.categoryIds).toEqual(["cat-ismeretterjeszto"]);
   });
 
-  it('maps "Science Fiction" to Szépirodalom and Ismeretterjesztő as well', () => {
+  it('maps "Science Fiction" to the Sci-fi topic only, with no category', () => {
     const result = match({ apiCategories: ["Science Fiction"] });
-    expect(result.categoryNames).toEqual(["Szépirodalom", "Ismeretterjesztő"]);
+    expect(result.categoryNames).toEqual([]);
     expect(result.topicNames).toEqual(["Sci-fi"]);
   });
 
-  it("does not detect text keywords that begin with an accented letter", () => {
-    // "életrajz", "önéletrajz", "űr" and "összeesküvés" sit behind a \b in their
-    // pattern, which never matches in front of an accented letter.
-    expect(match({ title: "Egy hosszabb cím", description: "Ez egy izgalmas életrajz" }).categoryNames).toEqual([]);
-    expect(match({ title: "Egy hosszabb cím", description: "A hős az űr mélyére utazik" }).topicNames).toEqual([]);
-    expect(match({ title: "Egy hosszabb cím", description: "Egy nagy összeesküvés a háttérben" }).topicNames).toEqual([]);
-    // the same meaning with a non-accented first letter is found
-    expect(match({ title: "Egy hosszabb cím", description: "This is a biography" }).categoryNames).toEqual(["Életrajz"]);
+  it('maps "Computer Science" to Informatika only, not to Ismeretterjesztő', () => {
+    const result = match({ apiCategories: ["Computer Science"] });
+    expect(result.categoryNames).toEqual(["Informatika"]);
+  });
+
+  it("keeps both names when neither keyword contains the other", () => {
+    const result = match({ apiCategories: ["Juvenile Fiction"] });
+    expect(result.categoryNames).toEqual(["Szépirodalom", "Gyermekirodalom"]);
+  });
+
+  it("still matches a single keyword that nothing else covers", () => {
+    expect(match({ apiCategories: ["Fiction"] }).categoryNames).toEqual(["Szépirodalom"]);
+    expect(match({ apiCategories: ["Science"] }).categoryNames).toEqual(["Ismeretterjesztő"]);
+  });
+});
+
+describe("matchCategoriesAndTopics - accented keywords", () => {
+  it("detects a Hungarian keyword that begins with an accented letter", () => {
+    expect(
+      match({ title: "Egy hosszabb cím", description: "Ez egy izgalmas életrajz a szerzőről" }).categoryNames
+    ).toEqual(["Életrajz"]);
+    expect(
+      match({ title: "Egy hosszabb cím", description: "A szerző önéletrajza következik" }).categoryNames
+    ).toEqual(["Életrajz"]);
+    expect(
+      match({ title: "Egy hosszabb cím", description: "A hős az űr mélyére utazik" }).topicNames
+    ).toEqual(["Sci-fi"]);
+    expect(
+      match({ title: "Egy hosszabb cím", description: "Egy nagy összeesküvés a háttérben" }).topicNames
+    ).toEqual(["Thriller"]);
+  });
+
+  it("still ignores a keyword that sits in the middle of a word", () => {
+    // "regény" inside "kalandregény" and "történel" inside "őstörténelem" are not word starts
+    expect(
+      match({ title: "Egy hosszabb szöveg", description: "Ez itt egy kalandregény" }).categoryNames
+    ).toEqual([]);
+    expect(
+      match({ title: "Egy hosszabb cím", description: "Az őstörténelem korszakai" }).categoryNames
+    ).toEqual([]);
+  });
+
+  it("matches the same keyword when it does start a word", () => {
+    expect(
+      match({ title: "Egy hosszabb cím", description: "A történelem tanulságai" }).categoryNames
+    ).toEqual(["Történelem"]);
+  });
+
+  it("keeps the word-end boundary of the AI/ML pattern", () => {
+    expect(
+      match({ title: "Egy hosszabb cím", description: "A gépi tanulás alapjai" }).topicNames
+    ).toEqual(["AI/ML"]);
+    expect(
+      match({ title: "Egy hosszabb cím", description: "Deep learninges megoldasok" }).topicNames
+    ).toEqual([]);
   });
 });
