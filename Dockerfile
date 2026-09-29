@@ -53,5 +53,5 @@ ENV STORAGE_DIR=/data/storage
 ENV HOSTNAME="0.0.0.0"
 EXPOSE 3000
 
-HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://localhost:3000/api/health || exit 1
+HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://127.0.0.1:3000/api/health || exit 1
 ENTRYPOINT ["sh", "./docker-entrypoint.sh"]
