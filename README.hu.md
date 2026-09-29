@@ -122,7 +122,6 @@ Szerkeszd a `.env` fájlt — változtasd meg a jelszavakat:
 MYSQL_ROOT_PASSWORD=erős_jelszó
 MYSQL_PASSWORD=adatbázis_jelszó
 NEXTAUTH_SECRET=generald-openssl-rand-base64-32
-MINIO_ROOT_PASSWORD=minio_jelszó
 ```
 
 ### 2. Indítás Docker Compose-zal
@@ -157,7 +156,7 @@ npx prisma db push
 npm run dev
 ```
 
-Node.js 22+ és futó MySQL + MinIO szükséges.
+Node.js 22+ és futó MySQL szükséges. A fájlok a `./storage` mappába kerülnek (`STORAGE_DIR`-rel felülírható).
 
 </details>
 
@@ -169,7 +168,6 @@ Node.js 22+ és futó MySQL + MinIO szükséges.
 |---------|------|-------------|-------------|
 | `app` | 3000 | Next.js alkalmazás | `wget /api/health` |
 | `db` | 3306 | MySQL 8.4 adatbázis | `mysqladmin ping` |
-| `minio` | 9000 / 9001 | Fájl tároló (API / konzol) | `curl /minio/health/live` |
 | `calibre` | 8080 | E-könyv konverziós szerver | `curl /health` |
 
 ```bash
@@ -190,9 +188,7 @@ docker compose build --no-cache app  # Teljes újraépítés
 | `NEXTAUTH_SECRET` | — | Auth titkosító kulcs (min 32 karakter!) |
 | `NEXTAUTH_URL` | `http://localhost:3000` | Nyilvános alkalmazás URL |
 | `AUTH_TRUST_HOST` | `true` | Reverse proxy mögött `true` |
-| `MINIO_ROOT_USER` | `minioadmin` | MinIO hozzáférési kulcs |
-| `MINIO_ROOT_PASSWORD` | — | MinIO titkos kulcs |
-| `MINIO_PUBLIC_ENDPOINT` | `localhost` | MinIO nyilvános hostnév |
+| `STORAGE_HOST_PATH` | `./storage` | Hoszt-mappa az e-könyveknek és borítóknak (az 1001-es uid írja) |
 | `APP_PORT` | `3000` | Alkalmazás port |
 
 > **Titkos kulcs generálás:** `openssl rand -base64 32`
@@ -219,13 +215,13 @@ Ezek az adatbázis `Setting` táblájában tárolódnak, és az admin vezérlőp
 | **Backend** | Next.js API Routes, Prisma ORM v7 |
 | **Adatbázis** | MySQL 8.4 (Docker) |
 | **Autentikáció** | NextAuth.js v5 (Auth.js) — jelszó + OIDC (Authentik) |
-| **Tároló** | MinIO (S3-kompatibilis, Docker konténer) |
+| **Tároló** | Lokális fájlrendszer (az app konténerbe csatolt hoszt-mappa) |
 | **E-könyv** | EPUB.js (böngésző olvasó), Calibre CLI (konverzió) |
 | **Többnyelvűség** | next-intl v4 (magyar + angol) |
 | **Állapotkezelés** | Zustand |
 | **Validáció** | Zod v4 + React Hook Form |
 | **Tesztelés** | Vitest (unit) + Playwright (E2E) |
-| **Infrastruktúra** | Docker Compose (4 szolgáltatás) |
+| **Infrastruktúra** | Docker Compose (3 szolgáltatás) |
 
 ---
 
@@ -240,15 +236,14 @@ Ezek az adatbázis `Setting` táblájában tárolódnak, és az admin vezérlőp
                            │ :3000
                     ┌──────┴──────┐
                     │   Next.js   │  frontend hálózat
-                    │    (app)    │
-                    └──┬───┬───┬──┘
-                       │   │   │     backend hálózat (belső)
-                 ┌─────┘   │   └─────┐
-                 │         │         │
-            ┌────┴───┐ ┌───┴──┐ ┌───┴────┐
-            │ MySQL  │ │MinIO │ │Calibre │
-            │  8.4   │ │      │ │  CLI   │
-            └────────┘ └──────┘ └────────┘
+                    │    (app)    │───── ./storage (hoszt-mappa)
+                    └──┬───────┬──┘
+                       │       │     backend hálózat (belső)
+                 ┌─────┘       └─────┐
+            ┌────┴───┐          ┌────┴───┐
+            │ MySQL  │          │Calibre │
+            │  8.4   │          │  CLI   │
+            └────────┘          └────────┘
 ```
 
 <details>
@@ -257,9 +252,8 @@ Ezek az adatbázis `Setting` táblájában tárolódnak, és az admin vezérlőp
 Állítsd be a `.env` fájlban:
 - `NEXTAUTH_SECRET` — generálás: `openssl rand -base64 32`
 - `MYSQL_ROOT_PASSWORD`, `MYSQL_PASSWORD` — erős jelszavak
-- `MINIO_ROOT_PASSWORD` — erős jelszó
 - `NEXTAUTH_URL` — a domain neved (pl. `https://yourdomain.com`)
-- `MINIO_PUBLIC_ENDPOINT` — a domain neved
+- Tároló mappa: `mkdir -p storage && chown 1001:1001 storage` a `docker-compose.yml` mellett
 
 Architektúra:
 - Két hálózat: `frontend` (nyilvános) + `backend` (belső, nem elérhető kívülről)
@@ -361,7 +355,7 @@ ShelfHaven/
 │   ├── lib/                    # Segédeszközök
 │   │   ├── auth.ts             # NextAuth konfig + brute-force + OIDC
 │   │   ├── prisma.ts           # Prisma kliens singleton
-│   │   ├── storage/minio.ts    # MinIO S3 kliens
+│   │   ├── storage/            # Lokális fájltároló (e-könyvek, borítók)
 │   │   ├── backup/             # Admin mentés és visszaállítás
 │   │   └── ebook/              # EPUB feldolgozó, Calibre kliens, borító eszközök
 │   ├── hooks/                  # Egyéni React hookok

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getFile, uploadFile, deleteFile } from "@/lib/storage/minio";
+import { readStoredFile, saveFile, deleteStoredFile } from "@/lib/storage";
 import { checkRateLimit, PUBLIC_LIMIT, API_LIMIT } from "@/lib/rate-limit";
 import { auth } from "@/lib/auth";
 import { validateCsrf } from "@/lib/csrf";
@@ -29,27 +29,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 
   try {
-    // Extract the key from the stored URL
-    // URL format: http://minio:9000/covers/userId/timestamp_cover_filename.jpg
-    // or: http://localhost:9000/covers/userId/timestamp_cover_filename.jpg
-    const url = new URL(book.coverUrl);
-    const pathParts = url.pathname.split("/");
-    // pathParts: ["", "covers", "userId", "timestamp_cover_filename.jpg"]
-    const bucket = pathParts[1]; // "covers"
-    const key = pathParts.slice(2).join("/"); // "userId/timestamp_cover_filename.jpg"
-
-    const response = await getFile(bucket, key);
-
-    if (!response.Body) {
+    const file = await readStoredFile(book.coverUrl);
+    if (!file) {
       return new NextResponse(null, { status: 404 });
     }
 
-    const bodyBytes = await response.Body.transformToByteArray();
-
-    return new NextResponse(Buffer.from(bodyBytes), {
+    return new NextResponse(new Uint8Array(file.data), {
       status: 200,
       headers: {
-        "Content-Type": response.ContentType || "image/jpeg",
+        "Content-Type": file.contentType,
         "Cache-Control": "public, max-age=86400, immutable",
       },
     });
@@ -105,19 +93,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const timestamp = Date.now();
     const coverKey = `${session.user.id}/${timestamp}_cover.jpg`;
-    const newCoverUrl = await uploadFile(
-      process.env.MINIO_BUCKET_COVERS!,
-      coverKey,
-      resized,
-      "image/jpeg"
-    );
+    const newCoverUrl = await saveFile("covers", coverKey, resized);
 
     // Delete old cover
     if (book.coverUrl) {
       try {
-        const oldUrl = new URL(book.coverUrl);
-        const oldKey = oldUrl.pathname.split("/").slice(2).join("/");
-        await deleteFile(process.env.MINIO_BUCKET_COVERS!, oldKey);
+        await deleteStoredFile(book.coverUrl);
       } catch {
         // Silent fail
       }

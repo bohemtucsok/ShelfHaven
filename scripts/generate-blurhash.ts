@@ -15,6 +15,7 @@ import { PrismaClient } from "../src/generated/prisma/client.js";
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import sharp from "sharp";
 import { encode } from "blurhash";
+import { readStoredFile } from "../src/lib/storage/index.js";
 
 function createPrisma() {
   const url = new URL(process.env.DATABASE_URL!);
@@ -72,18 +73,15 @@ async function main() {
 
   for (const book of books) {
     try {
-      // Fetch cover from MinIO (internal URL)
-      const res = await fetch(book.coverUrl!, {
-        signal: AbortSignal.timeout(10000),
-      });
+      const cover = await readStoredFile(book.coverUrl);
 
-      if (!res.ok) {
-        console.warn(`  [SKIP] ${book.title} - HTTP ${res.status}`);
+      if (!cover) {
+        console.warn(`  [SKIP] ${book.title} - cover file not found`);
         failed++;
         continue;
       }
 
-      const buffer = Buffer.from(await res.arrayBuffer());
+      const buffer = cover.data;
       const hash = await generateBlurHash(buffer);
 
       if (hash) {

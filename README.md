@@ -122,7 +122,6 @@ Edit `.env` — change the passwords:
 MYSQL_ROOT_PASSWORD=your_strong_password
 MYSQL_PASSWORD=your_db_password
 NEXTAUTH_SECRET=generate-with-openssl-rand-base64-32
-MINIO_ROOT_PASSWORD=your_minio_password
 ```
 
 ### 2. Start with Docker Compose
@@ -157,7 +156,7 @@ npx prisma db push
 npm run dev
 ```
 
-Requires Node.js 22+ and a running MySQL + MinIO instance.
+Requires Node.js 22+ and a running MySQL instance. Files are stored in `./storage` (override with `STORAGE_DIR`).
 
 </details>
 
@@ -169,7 +168,6 @@ Requires Node.js 22+ and a running MySQL + MinIO instance.
 |---------|------|-------------|-------------|
 | `app` | 3000 | Next.js application | `wget /api/health` |
 | `db` | 3306 | MySQL 8.4 database | `mysqladmin ping` |
-| `minio` | 9000 / 9001 | File storage (API / console) | `curl /minio/health/live` |
 | `calibre` | 8080 | E-book conversion server | `curl /health` |
 
 ```bash
@@ -190,9 +188,7 @@ docker compose build --no-cache app  # Full rebuild
 | `NEXTAUTH_SECRET` | — | Auth encryption key (min 32 chars!) |
 | `NEXTAUTH_URL` | `http://localhost:3000` | Public app URL |
 | `AUTH_TRUST_HOST` | `true` | Set `true` behind reverse proxy |
-| `MINIO_ROOT_USER` | `minioadmin` | MinIO access key |
-| `MINIO_ROOT_PASSWORD` | — | MinIO secret key |
-| `MINIO_PUBLIC_ENDPOINT` | `localhost` | MinIO public hostname |
+| `STORAGE_HOST_PATH` | `./storage` | Host directory for e-books and covers (must be writable by uid 1001) |
 | `APP_PORT` | `3000` | Application port |
 
 > **Generate secrets:** `openssl rand -base64 32`
@@ -219,13 +215,13 @@ These are stored in the database `Setting` table and can be changed from the adm
 | **Backend** | Next.js API Routes, Prisma ORM v7 |
 | **Database** | MySQL 8.4 (Docker) |
 | **Auth** | NextAuth.js v5 (Auth.js) — credentials + OIDC (Authentik) |
-| **Storage** | MinIO (S3-compatible, Docker container) |
+| **Storage** | Local filesystem (host directory bind-mounted into the app container) |
 | **E-book** | EPUB.js (browser reader), Calibre CLI (conversion) |
 | **i18n** | next-intl v4 (Hungarian + English) |
 | **State** | Zustand |
 | **Validation** | Zod v4 + React Hook Form |
 | **Testing** | Vitest (unit) + Playwright (E2E) |
-| **Infrastructure** | Docker Compose (4 services) |
+| **Infrastructure** | Docker Compose (3 services) |
 
 ---
 
@@ -240,15 +236,14 @@ These are stored in the database `Setting` table and can be changed from the adm
                            │ :3000
                     ┌──────┴──────┐
                     │   Next.js   │  frontend network
-                    │    (app)    │
-                    └──┬───┬───┬──┘
-                       │   │   │     backend network (internal)
-                 ┌─────┘   │   └─────┐
-                 │         │         │
-            ┌────┴───┐ ┌───┴──┐ ┌───┴────┐
-            │ MySQL  │ │MinIO │ │Calibre │
-            │  8.4   │ │      │ │  CLI   │
-            └────────┘ └──────┘ └────────┘
+                    │    (app)    │───── ./storage (host dir)
+                    └──┬───────┬──┘
+                       │       │     backend network (internal)
+                 ┌─────┘       └─────┐
+            ┌────┴───┐          ┌────┴───┐
+            │ MySQL  │          │Calibre │
+            │  8.4   │          │  CLI   │
+            └────────┘          └────────┘
 ```
 
 <details>
@@ -257,9 +252,8 @@ These are stored in the database `Setting` table and can be changed from the adm
 Set in `.env`:
 - `NEXTAUTH_SECRET` — generate: `openssl rand -base64 32`
 - `MYSQL_ROOT_PASSWORD`, `MYSQL_PASSWORD` — strong passwords
-- `MINIO_ROOT_PASSWORD` — strong password
 - `NEXTAUTH_URL` — your domain (e.g., `https://yourdomain.com`)
-- `MINIO_PUBLIC_ENDPOINT` — your domain
+- Storage directory: `mkdir -p storage && chown 1001:1001 storage` next to `docker-compose.yml`
 
 Architecture:
 - Two networks: `frontend` (public) + `backend` (internal, not exposed)
@@ -361,7 +355,7 @@ ShelfHaven/
 │   ├── lib/                    # Utilities
 │   │   ├── auth.ts             # NextAuth config + brute-force + OIDC
 │   │   ├── prisma.ts           # Prisma client singleton
-│   │   ├── storage/minio.ts    # MinIO S3 client
+│   │   ├── storage/            # Local file storage (e-books, covers)
 │   │   ├── backup/             # Admin backup & restore
 │   │   └── ebook/              # EPUB parser, Calibre client, cover utils
 │   ├── hooks/                  # Custom React hooks

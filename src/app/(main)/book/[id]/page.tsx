@@ -2,7 +2,6 @@ import { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { toPublicUrl } from "@/lib/storage/minio";
 import BookDetail from "./BookDetail";
 
 type PageProps = { params: Promise<{ id: string }> };
@@ -91,7 +90,7 @@ export default async function BookPage({ params }: PageProps) {
     description: bookRaw.description,
     coverUrl: bookRaw.coverUrl ? `/api/books/${id}/cover` : null,
     blurHash: bookRaw.blurHash,
-    fileUrl: toPublicUrl(bookRaw.fileUrl) || "",
+    fileUrl: `/api/books/${id}/download`,
     originalFormat: bookRaw.originalFormat,
     fileSize: bookRaw.fileSize,
     language: bookRaw.language,
@@ -111,7 +110,7 @@ export default async function BookPage({ params }: PageProps) {
     conversionStatus: bookRaw.conversionStatus,
     conversionError: bookRaw.conversionError,
     originalFileUrl: bookRaw.originalFileUrl
-      ? toPublicUrl(bookRaw.originalFileUrl)
+      ? `/api/books/${id}/download?variant=original`
       : null,
     isOwner: session?.user?.id ? bookRaw.userId === session.user.id : false,
     liked: false,

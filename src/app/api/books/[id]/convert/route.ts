@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getFile, uploadFile } from "@/lib/storage/minio";
+import { readStoredFile, saveFile, parseStorageRef } from "@/lib/storage";
 import { convertToEpub } from "@/lib/ebook/calibre";
 import { createNotification } from "@/lib/notifications";
 import { validateCsrf } from "@/lib/csrf";
@@ -91,27 +91,14 @@ export async function POST(
   });
 
   try {
-    // Download original file from MinIO (use originalFileUrl if re-converting)
-    const fileUrl = book.originalFileUrl || book.fileUrl;
-    const urlParts = new URL(fileUrl);
-    const pathParts = urlParts.pathname.split("/");
-    // path format: /ebooks/userId/timestamp_filename.pdf
-    const bucket = pathParts[1]; // "ebooks"
-    const key = pathParts.slice(2).join("/"); // "userId/timestamp_filename.pdf"
-
-    const fileResponse = await getFile(bucket, key);
-    const bodyStream = fileResponse.Body;
-    if (!bodyStream) {
+    // Read original file from storage (use originalFileUrl if re-converting)
+    const sourceRef = book.originalFileUrl || book.fileUrl;
+    const source = await readStoredFile(sourceRef);
+    if (!source) {
       throw new Error("Failed to read file from storage");
     }
-
-    // Convert stream to buffer
-    const chunks: Uint8Array[] = [];
-    // @ts-expect-error - AWS SDK stream
-    for await (const chunk of bodyStream) {
-      chunks.push(chunk as Uint8Array);
-    }
-    const fileBuffer = Buffer.concat(chunks);
+    const fileBuffer = source.data;
+    const key = parseStorageRef(sourceRef)?.key || "";
 
     const filename = key.split("/").pop() || `input.${book.originalFormat}`;
 
@@ -137,17 +124,12 @@ export async function POST(
       return NextResponse.json({ error: result.error }, { status: 500 });
     }
 
-    // Upload converted EPUB to MinIO
+    // Store converted EPUB
     const timestamp = Date.now();
     const baseName = filename.replace(/\.[^/.]+$/, "");
     const epubKey = `${book.userId}/${timestamp}_${baseName}.epub`;
 
-    const epubUrl = await uploadFile(
-      process.env.MINIO_BUCKET_EBOOKS || "ebooks",
-      epubKey,
-      result.data,
-      "application/epub+zip"
-    );
+    const epubUrl = await saveFile("ebooks", epubKey, result.data);
 
     // Update book: fileUrl points to EPUB, preserve original file URL
     await prisma.book.update({
@@ -170,7 +152,7 @@ export async function POST(
 
     return NextResponse.json({
       conversionStatus: "completed",
-      fileUrl: epubUrl,
+      fileUrl: `/api/books/${bookId}/download`,
     });
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : "Ismeretlen hiba";

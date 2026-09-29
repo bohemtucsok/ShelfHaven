@@ -10,16 +10,12 @@ services:
       - .env
     environment:
       DATABASE_URL: "mysql://ebookuser:${MYSQL_PASSWORD}@db:3306/shelfhaven"
-      MINIO_ENDPOINT: "minio"
-      MINIO_PORT: "9000"
-      MINIO_ACCESS_KEY: "${MINIO_ROOT_USER}"
-      MINIO_SECRET_KEY: "${MINIO_ROOT_PASSWORD}"
-      MINIO_BUCKET_EBOOKS: "ebooks"
-      MINIO_BUCKET_COVERS: "covers"
-      MINIO_USE_SSL: "false"
-      MINIO_PUBLIC_ENDPOINT: "${MINIO_PUBLIC_ENDPOINT:-localhost}"
+      STORAGE_DIR: "/data/storage"
       CALIBRE_SERVICE_URL: "http://calibre:8080"
       AUTH_TRUST_HOST: "true"
+    # E-books and covers are stored on the host, next to this file (owner must be uid 1001)
+    volumes:
+      - ${STORAGE_HOST_PATH:-./storage}:/data/storage
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
       interval: 30s
@@ -28,8 +24,6 @@ services:
       start_period: 30s
     depends_on:
       db:
-        condition: service_healthy
-      minio:
         condition: service_healthy
       calibre:
         condition: service_healthy
@@ -67,24 +61,6 @@ services:
     networks:
       - backend
 
-  # MinIO - S3-kompatibilis fajl storage
-  minio:
-    image: minio/minio
-    environment:
-      MINIO_ROOT_USER: "${MINIO_ROOT_USER}"
-      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD}"
-    volumes:
-      - minio-data:/data
-    command: server /data --console-address ":9001"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
-    networks:
-      - backend
-
   # Calibre - E-book konverzio (PDF/MOBI -> EPUB)
   calibre:
     build:
@@ -107,32 +83,8 @@ services:
     networks:
       - backend
 
-  # MinIO bucket inicializalas
-  minio-init:
-    image: minio/mc
-    depends_on:
-      minio:
-        condition: service_healthy
-    restart: "no"
-    entrypoint: >
-      /bin/sh -c "
-      sleep 2;
-      mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
-      mc mb local/ebooks --ignore-existing;
-      mc mb local/covers --ignore-existing;
-      mc anonymous set download local/ebooks;
-      mc anonymous set download local/covers;
-      echo 'MinIO buckets created successfully';
-      "
-    environment:
-      MINIO_ROOT_USER: "${MINIO_ROOT_USER}"
-      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD}"
-    networks:
-      - backend
-
 volumes:
   mysql-data:
-  minio-data:
 
 networks:
   frontend:

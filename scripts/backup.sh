@@ -1,13 +1,15 @@
 #!/bin/bash
 # ShelfHaven - Database & Storage Backup Script
 # Usage: ./scripts/backup.sh [backup_dir]
-# Requires: docker compose, running db and minio containers
+# Requires: docker compose, running db container, read access to the storage directory
 
 set -euo pipefail
 
 BACKUP_DIR="${1:-./backups}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.yml}"
+# Host directory bind-mounted into the app container (see docker-compose.yml)
+STORAGE_DIR="${STORAGE_HOST_PATH:-$(dirname "$COMPOSE_FILE")/storage}"
 
 # Colors
 RED='\033[0;31m'
@@ -41,31 +43,28 @@ else
   error "MySQL backup failed (empty file)"
 fi
 
-# --- MinIO Backup ---
-log "Backing up MinIO storage..."
-MINIO_BACKUP="$BACKUP_DIR/minio_${TIMESTAMP}"
-mkdir -p "$MINIO_BACKUP"
+# --- Storage Backup ---
+log "Backing up file storage ($STORAGE_DIR)..."
+STORAGE_BACKUP="$BACKUP_DIR/storage_${TIMESTAMP}.tar.gz"
 
-# Use mc (MinIO client) inside the minio container to copy files
-docker compose -f "$COMPOSE_FILE" exec -T minio \
-  sh -c 'cd /data && tar cf - ebooks covers 2>/dev/null' | tar xf - -C "$MINIO_BACKUP" 2>/dev/null
-
-if [ -d "$MINIO_BACKUP/ebooks" ] || [ -d "$MINIO_BACKUP/covers" ]; then
-  MINIO_SIZE=$(du -sh "$MINIO_BACKUP" | cut -f1)
-  log "MinIO backup OK: $MINIO_BACKUP ($MINIO_SIZE)"
+if [ -d "$STORAGE_DIR" ]; then
+  tar czf "$STORAGE_BACKUP" -C "$STORAGE_DIR" --exclude='*.tmp' . \
+    || error "Storage backup failed"
+  STORAGE_SIZE=$(du -h "$STORAGE_BACKUP" | cut -f1)
+  log "Storage backup OK: $STORAGE_BACKUP ($STORAGE_SIZE)"
 else
-  warn "MinIO backup: no ebooks/covers data found (empty storage?)"
+  warn "Storage directory not found: $STORAGE_DIR (nothing to back up)"
 fi
 
 # --- Cleanup old backups (keep last 7) ---
 log "Cleaning old backups (keeping last 7)..."
 ls -dt "$BACKUP_DIR"/db_*.sql.gz 2>/dev/null | tail -n +8 | xargs rm -f 2>/dev/null || true
-ls -dt "$BACKUP_DIR"/minio_* 2>/dev/null | tail -n +8 | xargs rm -rf 2>/dev/null || true
+ls -dt "$BACKUP_DIR"/storage_*.tar.gz 2>/dev/null | tail -n +8 | xargs rm -f 2>/dev/null || true
 
 # --- Summary ---
 echo ""
 log "=== Backup Complete ==="
 log "Database: $DB_BACKUP"
-log "Storage:  $MINIO_BACKUP"
+log "Storage:  $STORAGE_BACKUP"
 TOTAL_SIZE=$(du -sh "$BACKUP_DIR" | cut -f1)
 log "Total backup size: $TOTAL_SIZE"

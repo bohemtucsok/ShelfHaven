@@ -1124,9 +1124,9 @@ export default function BookDetail({ bookId, initialBook }: BookDetailProps) {
                     </button>
                   )}
 
-                  {/* Download: use original file URL if available */}
+                  {/* Download: the original upload if the book was converted, otherwise the EPUB */}
                   <a
-                    href={book.originalFileUrl || book.fileUrl}
+                    href={`/api/books/${bookId}/download?variant=original`}
                     download
                     onClick={() => {
                       fetch(`/api/books/${bookId}/download`, { method: "POST" }).catch(() => {});

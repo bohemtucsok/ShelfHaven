@@ -1,5 +1,14 @@
 #!/bin/sh
 
+STORAGE_DIR="${STORAGE_DIR:-/data/storage}"
+if mkdir -p "$STORAGE_DIR/ebooks" "$STORAGE_DIR/covers" 2>/dev/null \
+  && [ -w "$STORAGE_DIR/ebooks" ] && [ -w "$STORAGE_DIR/covers" ]; then
+  echo "[entrypoint] Storage OK: $STORAGE_DIR"
+else
+  echo "[entrypoint] ERROR: storage directory $STORAGE_DIR is not writable by uid $(id -u)."
+  echo "[entrypoint] ERROR: on the host run: chown -R 1001:1001 <storage dir>  (uploads will fail until fixed)"
+fi
+
 echo "[entrypoint] Checking database schema..."
 
 node -e "
@@ -103,6 +112,21 @@ async function run() {
           }
         } catch (e) {
           console.log('[entrypoint] Migration skip (' + m.table + '.' + m.col + '): ' + e.message);
+        }
+      }
+
+      // Data migration: legacy MinIO URLs (http://minio:9000/<bucket>/<key>) -> storage references (<bucket>/<key>)
+      for (const col of ['fileUrl', 'originalFileUrl', 'coverUrl']) {
+        try {
+          const res = await conn.query(
+            'UPDATE Book SET ' + col + ' = REGEXP_REPLACE(' + col + ', ?, ?) WHERE ' + col + ' REGEXP ?',
+            ['^https?://[^/]+/', '', '^https?://[^/]+/(ebooks|covers)/']
+          );
+          if (Number(res.affectedRows) > 0) {
+            console.log('[entrypoint] Migration: ' + res.affectedRows + ' Book.' + col + ' value(s) converted to storage references');
+          }
+        } catch (e) {
+          console.log('[entrypoint] Migration skip (Book.' + col + '): ' + e.message);
         }
       }
     }

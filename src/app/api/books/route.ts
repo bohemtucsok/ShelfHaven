@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { toPublicUrl } from "@/lib/storage/minio";
 import { Prisma } from "@/generated/prisma/client";
 
 export async function GET(request: NextRequest) {
@@ -115,10 +114,11 @@ export async function GET(request: NextRequest) {
   books.forEach((b) => { if (b.author) authorSet.add(b.author); });
   const authors = Array.from(authorSet).sort();
 
-  // Replace internal Docker URLs with browser-accessible URLs + ownership flags
+  // Replace storage references with proxy URLs + ownership flags
   const booksWithProxiedCovers = books.map((book) => ({
     ...book,
-    fileUrl: toPublicUrl(book.fileUrl),
+    fileUrl: `/api/books/${book.id}/download`,
+    originalFileUrl: book.originalFileUrl ? `/api/books/${book.id}/download?variant=original` : null,
     coverUrl: book.coverUrl ? `/api/books/${book.id}/cover` : null,
     isOwned: book.userId === session.user.id,
     isSaved: book.userId !== session.user.id,
