@@ -5,9 +5,6 @@ import createNextIntlPlugin from "next-intl/plugin";
 const isProd = process.env.NODE_ENV === "production";
 const publicDomain = process.env.NEXTAUTH_URL || "http://localhost:3000";
 
-// In dev: direct MinIO access; in prod: covers proxied through /api/books/[id]/cover
-const minioCsp = isProd ? "" : "http://localhost:9000 http://minio:9000";
-
 const withPWA = withPWAInit({
   dest: "public",
   disable: !isProd,
@@ -59,18 +56,6 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
       {
-        protocol: "http",
-        hostname: "localhost",
-        port: "9000",
-        pathname: "/covers/**",
-      },
-      {
-        protocol: "http",
-        hostname: "minio",
-        port: "9000",
-        pathname: "/covers/**",
-      },
-      {
         protocol: "https",
         hostname: "books.google.com",
       },
@@ -107,7 +92,7 @@ const nextConfig: NextConfig = {
           ...(isProd ? [{ key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains; preload" }] : []),
           {
             key: "Content-Security-Policy",
-            value: `default-src 'self'; script-src 'self' ${isProd ? "" : "'unsafe-eval'"} 'unsafe-inline'; style-src 'self' 'unsafe-inline' blob:; style-src-elem 'self' 'unsafe-inline' blob:; img-src 'self' data: blob: ${minioCsp} https://books.google.com https://*.googleusercontent.com https://*.hardcover.app https://www.gravatar.com; font-src 'self' data: blob:; connect-src 'self' ${minioCsp} https://www.googleapis.com https://api.hardcover.app; worker-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`.replace(/\s+/g, " ").trim(),
+            value: `default-src 'self'; script-src 'self' ${isProd ? "" : "'unsafe-eval'"} 'unsafe-inline'; style-src 'self' 'unsafe-inline' blob:; style-src-elem 'self' 'unsafe-inline' blob:; img-src 'self' data: blob: https://books.google.com https://*.googleusercontent.com https://*.hardcover.app https://www.gravatar.com; font-src 'self' data: blob:; connect-src 'self' https://www.googleapis.com https://api.hardcover.app; worker-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`.replace(/\s+/g, " ").trim(),
           },
         ],
       },

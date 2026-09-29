@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { uploadFile, getPublicUrl } from "@/lib/storage/minio";
+import { saveFile, sanitizeKeySegment } from "@/lib/storage";
 import { parseEpub } from "@/lib/ebook/epub-parser";
 import { downloadAndResizeCover, generateBlurHash } from "@/lib/ebook/cover-utils";
 import { validateCsrf } from "@/lib/csrf";
@@ -115,13 +115,8 @@ export async function POST(request: NextRequest) {
     const safeFilename = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const fileKey = `${session.user.id}/${timestamp}_${safeFilename}`;
 
-    // Upload ebook to MinIO
-    const fileUrl = await uploadFile(
-      process.env.MINIO_BUCKET_EBOOKS!,
-      fileKey,
-      buffer,
-      file.type || "application/octet-stream"
-    );
+    // Store ebook file
+    const fileUrl = await saveFile("ebooks", fileKey, buffer);
 
     // Extract EPUB metadata and cover if applicable
     let epubTitle = title;
@@ -137,16 +132,11 @@ export async function POST(request: NextRequest) {
         if (!epubAuthor && metadata.author) epubAuthor = metadata.author;
         if (!epubDescription && metadata.description) epubDescription = metadata.description;
 
-        // Upload cover image from EPUB to MinIO (only if no external cover provided)
+        // Store cover image from EPUB (only if no external cover provided)
         if (!externalCoverUrl && metadata.coverImage) {
           coverBuffer = metadata.coverImage.data;
-          const coverKey = `${session.user.id}/${timestamp}_cover_${metadata.coverImage.filename}`;
-          coverUrl = await uploadFile(
-            process.env.MINIO_BUCKET_COVERS!,
-            coverKey,
-            metadata.coverImage.data,
-            metadata.coverImage.contentType
-          );
+          const coverKey = `${session.user.id}/${timestamp}_cover_${sanitizeKeySegment(metadata.coverImage.filename)}`;
+          coverUrl = await saveFile("covers", coverKey, metadata.coverImage.data);
         }
       } catch (e) {
         console.warn("EPUB metadata extraction failed, using manual values:", e);
@@ -160,12 +150,7 @@ export async function POST(request: NextRequest) {
         if (coverResult) {
           coverBuffer = coverResult.data;
           const coverKey = `${session.user.id}/${timestamp}_cover.jpg`;
-          coverUrl = await uploadFile(
-            process.env.MINIO_BUCKET_COVERS!,
-            coverKey,
-            coverResult.data,
-            coverResult.contentType
-          );
+          coverUrl = await saveFile("covers", coverKey, coverResult.data);
         }
       } catch (e) {
         console.warn("External cover download failed:", e);
@@ -225,9 +210,10 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Replace direct MinIO cover URL with proxy URL for client
+    // Replace storage references with proxy URLs for client
     const responseBook = {
       ...book,
+      fileUrl: `/api/books/${book.id}/download`,
       coverUrl: book.coverUrl ? `/api/books/${book.id}/cover` : null,
     };
 

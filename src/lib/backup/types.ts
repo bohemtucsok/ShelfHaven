@@ -2,7 +2,8 @@ export interface BackupManifest {
   version: number;
   createdAt: string;
   platform: string;
-  minioEndpoint: string;
+  /** Only present in v1 (MinIO era) backups: the base URL stored file references started with. */
+  minioEndpoint?: string;
   counts: {
     users: number;
     accounts: number;

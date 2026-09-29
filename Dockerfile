@@ -44,8 +44,12 @@ RUN mkdir /tmp/dbpkg && cd /tmp/dbpkg && npm init -y >/dev/null 2>&1 \
     && rm -rf /tmp/dbpkg /root/.npm \
     && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
+# Default location of e-books and covers (bind-mounted from the host in docker-compose.yml)
+RUN mkdir -p /data/storage && chown appuser:appgroup /data/storage
+
 USER appuser
 ENV NODE_ENV=production
+ENV STORAGE_DIR=/data/storage
 ENV HOSTNAME="0.0.0.0"
 EXPOSE 3000
 

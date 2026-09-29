@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { deleteFile, uploadFile, toPublicUrl } from "@/lib/storage/minio";
+import { saveFile, deleteStoredFile } from "@/lib/storage";
 import { downloadAndResizeCover } from "@/lib/ebook/cover-utils";
 import { validateCsrf } from "@/lib/csrf";
 import { checkRateLimit, API_LIMIT } from "@/lib/rate-limit";
@@ -45,13 +45,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       : 0;
 
   // Base response (public)
-  // Replace direct MinIO cover URL with proxy URL to avoid Docker hostname issues
-  const proxiedCoverUrl = book.coverUrl ? `/api/books/${id}/cover` : null;
-
+  // Files are only reachable through the app's proxy routes, never by storage reference
   const response: Record<string, unknown> = {
     ...book,
-    fileUrl: toPublicUrl(book.fileUrl),
-    coverUrl: proxiedCoverUrl,
+    fileUrl: `/api/books/${id}/download`,
+    originalFileUrl: book.originalFileUrl ? `/api/books/${id}/download?variant=original` : null,
+    coverUrl: book.coverUrl ? `/api/books/${id}/cover` : null,
     avgRating: Math.round(avgRating * 10) / 10,
     totalLikes: book._count.likes,
     isOwner: false,
@@ -129,17 +128,11 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       if (coverResult) {
         const timestamp = Date.now();
         const coverKey = `${session.user.id}/${timestamp}_cover.jpg`;
-        newCoverUrl = await uploadFile(
-          process.env.MINIO_BUCKET_COVERS!,
-          coverKey,
-          coverResult.data,
-          coverResult.contentType
-        );
+        newCoverUrl = await saveFile("covers", coverKey, coverResult.data);
         // Delete old cover if it exists
         if (existing.coverUrl) {
           try {
-            const oldKey = existing.coverUrl.split("/").slice(-2).join("/");
-            await deleteFile(process.env.MINIO_BUCKET_COVERS!, oldKey);
+            await deleteStoredFile(existing.coverUrl);
           } catch {
             // Silent fail for old cover deletion
           }
@@ -176,6 +169,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
   return NextResponse.json({
     ...book,
+    fileUrl: `/api/books/${id}/download`,
+    originalFileUrl: book.originalFileUrl ? `/api/books/${id}/download?variant=original` : null,
     coverUrl: book.coverUrl ? `/api/books/${id}/cover` : null,
   });
 }
@@ -202,23 +197,17 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: "Könyv nem található" }, { status: 404 });
   }
 
-  // Delete files from MinIO
+  // Delete files from storage
   try {
-    const extractKey = (url: string) => {
-      const u = new URL(url);
-      // path: /bucket/userId/timestamp_filename → key: userId/timestamp_filename
-      return u.pathname.split("/").slice(2).join("/");
-    };
-
-    await deleteFile(process.env.MINIO_BUCKET_EBOOKS!, extractKey(book.fileUrl));
+    await deleteStoredFile(book.fileUrl);
 
     // Delete original file if conversion created a separate EPUB
     if (book.originalFileUrl && book.originalFileUrl !== book.fileUrl) {
-      await deleteFile(process.env.MINIO_BUCKET_EBOOKS!, extractKey(book.originalFileUrl));
+      await deleteStoredFile(book.originalFileUrl);
     }
 
     if (book.coverUrl) {
-      await deleteFile(process.env.MINIO_BUCKET_COVERS!, extractKey(book.coverUrl));
+      await deleteStoredFile(book.coverUrl);
     }
   } catch {
     // Continue even if file deletion fails

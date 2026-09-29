@@ -1,15 +1,15 @@
 import JSZip from "jszip";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { uploadFile, listAllObjects, deleteFile } from "@/lib/storage/minio";
+import { BUCKETS, listFiles, saveFile, deleteStoredFile, parseStorageRef, toStorageRef, type Bucket } from "@/lib/storage";
 import { updateProgress, completeOperation } from "./progress-store";
-import type { RestoreMode, BackupManifest, DatabaseExport, RestoreResult } from "./types";
+import type { RestoreMode, DatabaseExport, RestoreResult } from "./types";
 
 const manifestSchema = z.object({
-  version: z.literal(1),
+  version: z.union([z.literal(1), z.literal(2)]),
   createdAt: z.string(),
   platform: z.string(),
-  minioEndpoint: z.string(),
+  minioEndpoint: z.string().optional(),
   counts: z.record(z.string(), z.number()),
   databaseChecksum: z.string(),
 });
@@ -38,7 +38,6 @@ export async function restoreBackup(
     if (!manifestResult.success) {
       throw new Error("Invalid backup: manifest.json validation failed");
     }
-    const manifest: BackupManifest = manifestRaw;
 
     const dbFile = zip.file("database.json");
     if (!dbFile) {
@@ -54,31 +53,28 @@ export async function restoreBackup(
       await wipeDatabase();
 
       updateProgress(operationId, { step: "wipe", message: "Deleting existing files...", percentage: 15 });
-      await wipeMinioFiles();
+      await wipeStoredFiles();
     }
 
     // Phase 3: Restore database records in FK-safe order (20-50%)
     updateProgress(operationId, { step: "database", message: "Restoring database...", percentage: 20 });
 
-    const minioEndpointOld = manifest.minioEndpoint;
-    const minioEndpointNew = `http://${process.env.MINIO_ENDPOINT}:${process.env.MINIO_PORT}`;
-
-    recordsRestored = await restoreDatabase(db, mode, minioEndpointOld, minioEndpointNew, (model, index, total) => {
+    recordsRestored = await restoreDatabase(db, mode, (model, index, total) => {
       const pct = 20 + Math.round((index / total) * 30);
       updateProgress(operationId, { step: "database", message: `Restoring ${model}...`, percentage: pct, current: index, total });
     });
 
-    // Phase 4: Restore MinIO files (50-95%)
+    // Phase 4: Restore stored files (50-95%)
     const filesFolder = zip.folder("files");
     if (filesFolder) {
-      const fileEntries: { path: string; bucket: string; key: string }[] = [];
+      const fileEntries: { path: string; bucket: Bucket; key: string }[] = [];
       filesFolder.forEach((relativePath, file) => {
         if (!file.dir) {
           const parts = relativePath.split("/");
           const bucket = parts[0]; // "ebooks" or "covers"
           const key = parts.slice(1).join("/");
-          if (bucket && key) {
-            fileEntries.push({ path: relativePath, bucket, key });
+          if ((BUCKETS as readonly string[]).includes(bucket) && key) {
+            fileEntries.push({ path: relativePath, bucket: bucket as Bucket, key });
           }
         }
       });
@@ -97,8 +93,7 @@ export async function restoreBackup(
         try {
           const fileData = await filesFolder.file(entry.path)?.async("uint8array");
           if (fileData) {
-            const contentType = guessContentType(entry.key);
-            await uploadFile(entry.bucket, entry.key, Buffer.from(fileData), contentType);
+            await saveFile(entry.bucket, entry.key, fileData);
             filesRestored++;
           }
         } catch {
@@ -158,11 +153,11 @@ async function wipeDatabase(): Promise<void> {
   await prisma.user.deleteMany();
 }
 
-async function wipeMinioFiles(): Promise<void> {
-  for (const bucket of ["ebooks", "covers"]) {
-    const objects = await listAllObjects(bucket);
-    for (const obj of objects) {
-      await deleteFile(bucket, obj.key);
+async function wipeStoredFiles(): Promise<void> {
+  for (const bucket of BUCKETS) {
+    const files = await listFiles(bucket);
+    for (const file of files) {
+      await deleteStoredFile(toStorageRef(bucket, file.key));
     }
   }
 }
@@ -171,15 +166,13 @@ async function wipeMinioFiles(): Promise<void> {
 async function restoreDatabase(
   db: DatabaseExport,
   mode: RestoreMode,
-  oldEndpoint: string,
-  newEndpoint: string,
   onProgress: (model: string, index: number, total: number) => void
 ): Promise<number> {
   let total = 0;
   const skipDuplicates = mode === "merge";
 
-  // Rewrite MinIO URLs in book records
-  const books = db.books.map((b) => rewriteUrls(b, oldEndpoint, newEndpoint));
+  // Normalize file references (v1 backups hold full MinIO URLs)
+  const books = db.books.map(normalizeFileRefs);
 
   const insertOrder: { name: string; fn: () => Promise<number> }[] = [
     { name: "users", fn: () => insertMany("user", db.users, skipDuplicates) },
@@ -347,28 +340,14 @@ function deserializeDates(record: Record<string, unknown>): Record<string, unkno
   return result;
 }
 
-// Rewrite MinIO URLs in book records
-function rewriteUrls(record: Record<string, unknown>, oldEndpoint: string, newEndpoint: string): Record<string, unknown> {
-  if (oldEndpoint === newEndpoint) return record;
+// Convert file references (incl. legacy MinIO URLs) to "<bucket>/<key>" storage references
+export function normalizeFileRefs(record: Record<string, unknown>): Record<string, unknown> {
   const result = { ...record };
   for (const key of ["fileUrl", "coverUrl", "originalFileUrl"]) {
-    if (typeof result[key] === "string" && (result[key] as string).startsWith(oldEndpoint)) {
-      result[key] = (result[key] as string).replace(oldEndpoint, newEndpoint);
+    const loc = typeof result[key] === "string" ? parseStorageRef(result[key] as string) : null;
+    if (loc) {
+      result[key] = toStorageRef(loc.bucket, loc.key);
     }
   }
   return result;
-}
-
-function guessContentType(key: string): string {
-  const ext = key.split(".").pop()?.toLowerCase();
-  switch (ext) {
-    case "epub": return "application/epub+zip";
-    case "pdf": return "application/pdf";
-    case "mobi": return "application/x-mobipocket-ebook";
-    case "jpg": case "jpeg": return "image/jpeg";
-    case "png": return "image/png";
-    case "webp": return "image/webp";
-    case "gif": return "image/gif";
-    default: return "application/octet-stream";
-  }
 }

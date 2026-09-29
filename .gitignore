@@ -57,6 +57,9 @@ public/swe-worker-*.js
 # Docker data volumes
 /data/
 
+# Local file storage (e-books, covers)
+/storage/
+
 # Certificates / keys
 *.key
 *.cert

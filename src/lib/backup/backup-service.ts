@@ -1,7 +1,7 @@
 import JSZip from "jszip";
 import { createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
-import { listAllObjects, getFile, getMinioInternalBase } from "@/lib/storage/minio";
+import { listFiles, readStoredFile, toStorageRef, type Bucket } from "@/lib/storage";
 import { updateProgress, completeOperation } from "./progress-store";
 import type { BackupManifest, DatabaseExport } from "./types";
 
@@ -36,11 +36,11 @@ export async function createBackup(operationId: string): Promise<void> {
     const dbJson = JSON.stringify(db, null, 0);
     const dbChecksum = createHash("sha256").update(dbJson).digest("hex");
 
-    // Phase 2: List MinIO files (30-35%)
+    // Phase 2: List stored files (30-35%)
     updateProgress(operationId, { step: "files", message: "Listing files...", percentage: 30 });
 
-    const ebookObjects = await listAllObjects("ebooks");
-    const coverObjects = await listAllObjects("covers");
+    const ebookObjects = await listFiles("ebooks");
+    const coverObjects = await listFiles("covers");
     const totalFiles = ebookObjects.length + coverObjects.length;
 
     // Phase 3: Build ZIP with files (35-90%)
@@ -48,16 +48,15 @@ export async function createBackup(operationId: string): Promise<void> {
 
     let filesProcessed = 0;
     const allFiles = [
-      ...ebookObjects.map((o) => ({ ...o, bucket: "ebooks" })),
-      ...coverObjects.map((o) => ({ ...o, bucket: "covers" })),
+      ...ebookObjects.map((o) => ({ ...o, bucket: "ebooks" as Bucket })),
+      ...coverObjects.map((o) => ({ ...o, bucket: "covers" as Bucket })),
     ];
 
     for (const file of allFiles) {
       try {
-        const response = await getFile(file.bucket, file.key);
-        if (response.Body) {
-          const bodyBytes = await response.Body.transformToByteArray();
-          zip.file(`files/${file.bucket}/${file.key}`, bodyBytes);
+        const stored = await readStoredFile(toStorageRef(file.bucket, file.key));
+        if (stored) {
+          zip.file(`files/${file.bucket}/${file.key}`, stored.data);
         }
       } catch {
         // Skip files that can't be read (e.g., deleted but still referenced)
@@ -75,10 +74,9 @@ export async function createBackup(operationId: string): Promise<void> {
 
     // Phase 4: Build manifest
     const manifest: BackupManifest = {
-      version: 1,
+      version: 2,
       createdAt: new Date().toISOString(),
       platform: "ShelfHaven",
-      minioEndpoint: getMinioInternalBase(),
       counts: {
         users: db.users.length,
         accounts: db.accounts.length,
