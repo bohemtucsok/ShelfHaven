@@ -3,10 +3,10 @@ import type { ZipArchiveLimits } from "@/lib/zip/limits";
 /**
  * Zip bomb limits for backup restore.
  *
- * Calibration (production, 2026-11-25): storage 43 MB in 48 files, largest
- * e-book 7.2 MB; a single upload is capped at 100 MB. The defaults leave a lot
- * of headroom so a much larger library still restores, and every value can be
- * raised with an environment variable instead of failing silently.
+ * The defaults are well above the size of a typical library (a single upload
+ * is capped at 100 MB), so a much larger library still restores, and every
+ * value can be raised with an environment variable instead of failing
+ * silently.
  */
 export interface RestoreZipLimits extends ZipArchiveLimits {
   /** manifest.json */
@@ -20,10 +20,10 @@ export interface RestoreZipLimits extends ZipArchiveLimits {
 const MB = 1024 * 1024;
 
 export const RESTORE_ZIP_LIMIT_DEFAULTS: RestoreZipLimits = {
-  // ~400x today's 48 files
+  // Far above the file count of a typical library
   maxFileCount: 20_000,
-  // ~100x today's 43 MB storage; files are restored one by one, so this bounds
-  // disk usage and run time rather than memory
+  // Far above the storage size of a typical library; files are restored one
+  // by one, so this bounds disk usage and run time rather than memory
   maxTotalUncompressedBytes: 4096 * MB,
   // E-books are already compressed (EPUB/PDF), a real backup is close to 1:1;
   // database.json compresses ~10-20:1, so 100:1 (above 64 MB) only hits bombs
