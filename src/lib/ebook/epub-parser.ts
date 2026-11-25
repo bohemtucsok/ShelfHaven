@@ -13,10 +13,116 @@ export interface EpubMetadata {
 }
 
 /**
+ * Zip bomb protection limits for uploaded EPUB archives.
+ *
+ * Two layers:
+ * 1. Before anything is decompressed, the sizes declared in the ZIP central
+ *    directory are checked (entry count, total uncompressed size, ratio).
+ * 2. Every entry that is actually decompressed (container.xml, OPF, cover) is
+ *    read as a stream with a hard byte limit, because declared sizes can lie.
+ */
+export const EPUB_ZIP_LIMITS = {
+  /** EPUBs rarely have more than a few hundred files */
+  maxFileCount: 5000,
+  /** Sum of declared uncompressed sizes */
+  maxTotalUncompressedBytes: 500 * 1024 * 1024,
+  /** Declared total uncompressed size / archive size */
+  maxCompressionRatio: 100,
+  /** The ratio is only meaningful for archives that expand to something big */
+  ratioCheckMinUncompressedBytes: 10 * 1024 * 1024,
+  /** META-INF/container.xml and the OPF package document */
+  maxXmlEntryBytes: 5 * 1024 * 1024,
+  /** Cover image */
+  maxCoverImageBytes: 20 * 1024 * 1024,
+} as const;
+
+/** Private JSZip field holding the sizes read from the central directory. */
+interface ZipEntryDeclaredSizes {
+  _data?: { compressedSize?: number; uncompressedSize?: number };
+}
+
+/**
+ * Read the entry count from the ZIP end-of-central-directory record without
+ * parsing the archive, so a huge central directory is rejected before JSZip
+ * builds an object per entry. Returns null if not found or ZIP64 (0xFFFF).
+ */
+function readEocdEntryCount(buffer: Buffer): number | null {
+  const EOCD_SIGNATURE = 0x06054b50;
+  const EOCD_MIN_SIZE = 22;
+  const minOffset = Math.max(0, buffer.length - EOCD_MIN_SIZE - 0xffff);
+  for (let i = buffer.length - EOCD_MIN_SIZE; i >= minOffset; i--) {
+    if (buffer.readUInt32LE(i) === EOCD_SIGNATURE) {
+      const total = buffer.readUInt16LE(i + 10);
+      return total === 0xffff ? null : total;
+    }
+  }
+  return null;
+}
+
+/**
+ * Decompress one ZIP entry, aborting as soon as more than `maxBytes` came out.
+ * Resolves to null if the entry is too large or cannot be decompressed.
+ */
+function readEntryLimited(
+  file: JSZip.JSZipObject,
+  maxBytes: number
+): Promise<Buffer | null> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value: Buffer | null) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+
+    let stream: NodeJS.ReadableStream;
+    try {
+      stream = file.nodeStream("nodebuffer");
+    } catch {
+      finish(null);
+      return;
+    }
+
+    const chunks: Buffer[] = [];
+    let total = 0;
+    stream.on("data", (chunk: Buffer) => {
+      if (settled) return;
+      total += chunk.length;
+      if (total > maxBytes) {
+        console.warn(
+          `[epub-parser] Entry "${file.name}" exceeds ${maxBytes} bytes when decompressed, skipping`
+        );
+        stream.pause();
+        (stream as { destroy?: () => void }).destroy?.();
+        finish(null);
+        return;
+      }
+      chunks.push(chunk);
+    });
+    stream.on("end", () => finish(Buffer.concat(chunks)));
+    stream.on("error", () => finish(null));
+  });
+}
+
+async function readTextEntryLimited(zip: JSZip, path: string): Promise<string | null> {
+  const file = zip.file(path);
+  if (!file) return null;
+  const data = await readEntryLimited(file, EPUB_ZIP_LIMITS.maxXmlEntryBytes);
+  return data ? data.toString("utf8") : null;
+}
+
+/**
  * Parse an EPUB file buffer and extract metadata + cover image.
  * EPUB is a ZIP archive containing XML files.
  */
 export async function parseEpub(buffer: Buffer): Promise<EpubMetadata> {
+  // Zip bomb protection (1): entry count from the EOCD, before parsing
+  const declaredEntries = readEocdEntryCount(buffer);
+  if (declaredEntries !== null && declaredEntries > EPUB_ZIP_LIMITS.maxFileCount) {
+    console.warn(`[epub-parser] Suspicious file count: ${declaredEntries} exceeds limit`);
+    return {};
+  }
+
   let zip: JSZip;
   try {
     zip = await JSZip.loadAsync(buffer);
@@ -24,19 +130,33 @@ export async function parseEpub(buffer: Buffer): Promise<EpubMetadata> {
     return {};
   }
 
-  // Zip bomb protection: count files and estimate total size
+  // Zip bomb protection (1): declared sizes from the central directory
   let fileCount = 0;
-  const MAX_FILE_COUNT = 5000; // EPUBs rarely have more than a few hundred files
+  let totalUncompressed = 0;
   zip.forEach((_, file) => {
-    if (!file.dir) fileCount++;
+    if (file.dir) return;
+    fileCount++;
+    totalUncompressed += (file as unknown as ZipEntryDeclaredSizes)._data?.uncompressedSize ?? 0;
   });
-  if (fileCount > MAX_FILE_COUNT) {
+  if (fileCount > EPUB_ZIP_LIMITS.maxFileCount) {
     console.warn(`[epub-parser] Suspicious file count: ${fileCount} exceeds limit`);
     return {};
   }
-  // Check compressed-to-input ratio: a 1MB EPUB shouldn't contain 100MB+ of data
-  // We limit metadata extraction to only read small text files (OPF/XML),
-  // and the cover image is bounded by loadImage's buffer handling
+  if (totalUncompressed > EPUB_ZIP_LIMITS.maxTotalUncompressedBytes) {
+    console.warn(`[epub-parser] Suspicious: declared uncompressed size ${totalUncompressed} exceeds limit`);
+    return {};
+  }
+  if (
+    buffer.length > 0 &&
+    totalUncompressed > EPUB_ZIP_LIMITS.ratioCheckMinUncompressedBytes &&
+    totalUncompressed / buffer.length > EPUB_ZIP_LIMITS.maxCompressionRatio
+  ) {
+    console.warn(
+      `[epub-parser] Suspicious compression ratio: ${(totalUncompressed / buffer.length).toFixed(0)}:1 exceeds limit`
+    );
+    return {};
+  }
+  // Many tiny entries are suspicious even if the declared sizes are small
   if (buffer.length > 0 && fileCount > 0) {
     const avgFileSize = buffer.length / fileCount;
     // If average compressed file is less than 10 bytes but there are thousands of files, suspicious
@@ -48,7 +168,8 @@ export async function parseEpub(buffer: Buffer): Promise<EpubMetadata> {
   const result: EpubMetadata = {};
 
   // 1. Find content.opf path from META-INF/container.xml
-  const containerXml = await zip.file("META-INF/container.xml")?.async("text");
+  // Zip bomb protection (2): entries are decompressed with a hard byte limit
+  const containerXml = await readTextEntryLimited(zip, "META-INF/container.xml");
   if (!containerXml) return result;
 
   const rootfileMatch = containerXml.match(/full-path="([^"]+)"/);
@@ -58,7 +179,7 @@ export async function parseEpub(buffer: Buffer): Promise<EpubMetadata> {
   const opfDir = opfPath.includes("/") ? opfPath.substring(0, opfPath.lastIndexOf("/") + 1) : "";
 
   // 2. Parse content.opf for metadata
-  const opfXml = await zip.file(opfPath)?.async("text");
+  const opfXml = await readTextEntryLimited(zip, opfPath);
   if (!opfXml) return result;
 
   // Extract metadata using regex (no DOM available server-side)
@@ -162,7 +283,8 @@ async function loadImage(
   if (!file) return null;
 
   try {
-    const data = Buffer.from(await file.async("uint8array"));
+    const data = await readEntryLimited(file, EPUB_ZIP_LIMITS.maxCoverImageBytes);
+    if (!data) return null;
     const ext = path.split(".").pop()?.toLowerCase() || "jpg";
     const contentTypeMap: Record<string, string> = {
       jpg: "image/jpeg",
