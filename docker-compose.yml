@@ -66,6 +66,11 @@ services:
     build:
       context: ./docker/calibre
     restart: unless-stopped
+    labels:
+      - com.centurylinklabs.watchtower.enable=false
+    # Temp files of conversions go to RAM (counts against the memory limit)
+    tmpfs:
+      - /tmp:size=1g
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 10s
@@ -76,10 +81,13 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    # pids lives under deploy: compose rejects pids_limit + deploy...pids together
     deploy:
       resources:
         limits:
-          memory: 1G
+          cpus: "2"
+          memory: 2G
+          pids: 512
     networks:
       - backend
 
