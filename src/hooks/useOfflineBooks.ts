@@ -18,6 +18,16 @@ interface OfflineBookData extends OfflineBookMeta {
   blob: Blob;
 }
 
+async function readStorageEstimate(): Promise<{ used: number; quota: number } | null> {
+  try {
+    if (navigator.storage?.estimate) {
+      const estimate = await navigator.storage.estimate();
+      return { used: estimate.usage || 0, quota: estimate.quota || 0 };
+    }
+  } catch {}
+  return null;
+}
+
 export function useOfflineBooks() {
   const [offlineBookIds, setOfflineBookIds] = useState<Set<string>>(new Set());
   const [storageUsage, setStorageUsage] = useState<{ used: number; quota: number } | null>(null);
@@ -38,20 +48,15 @@ export function useOfflineBooks() {
 
   // Update storage usage estimate
   const updateStorageEstimate = useCallback(async () => {
-    try {
-      if (navigator.storage?.estimate) {
-        const estimate = await navigator.storage.estimate();
-        setStorageUsage({
-          used: estimate.usage || 0,
-          quota: estimate.quota || 0,
-        });
-      }
-    } catch {}
+    const estimate = await readStorageEstimate();
+    if (estimate) setStorageUsage(estimate);
   }, []);
 
   useEffect(() => {
-    updateStorageEstimate();
-  }, [updateStorageEstimate]);
+    readStorageEstimate().then((estimate) => {
+      if (estimate) setStorageUsage(estimate);
+    });
+  }, []);
 
   const saveBookOffline = useCallback(
     async (bookId: string, fileUrl: string, meta: { title: string; author: string; coverUrl: string | null }) => {

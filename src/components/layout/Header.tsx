@@ -3,11 +3,22 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslations, useLocale } from "next-intl";
 import { useThemeStore, type Theme } from "@/store/theme-store";
+
+function subscribeOnlineStatus(onChange: () => void) {
+  window.addEventListener("offline", onChange);
+  window.addEventListener("online", onChange);
+  return () => {
+    window.removeEventListener("offline", onChange);
+    window.removeEventListener("online", onChange);
+  };
+}
+const getIsOffline = () => !navigator.onLine;
+const getIsOfflineOnServer = () => false;
 
 interface Notification {
   id: string;
@@ -31,26 +42,8 @@ export function Header() {
   const router = useRouter();
   const pathname = usePathname();
   const { theme, setTheme } = useThemeStore();
-  const [isOffline, setIsOffline] = useState(false);
-
-  // Online/offline detection
-  useEffect(() => {
-    setIsOffline(!navigator.onLine);
-    const goOffline = () => setIsOffline(true);
-    const goOnline = () => setIsOffline(false);
-    window.addEventListener("offline", goOffline);
-    window.addEventListener("online", goOnline);
-    return () => {
-      window.removeEventListener("offline", goOffline);
-      window.removeEventListener("online", goOnline);
-    };
-  }, []);
-
-  // Close mobile menu on route change
-  useEffect(() => {
-    setMobileMenuOpen(false);
-    setShowNotifications(false);
-  }, [pathname]);
+  // Online/offline detection (server render and hydration assume online)
+  const isOffline = useSyncExternalStore(subscribeOnlineStatus, getIsOffline, getIsOfflineOnServer);
 
   // Fetch notifications periodically
   useEffect(() => {
@@ -161,10 +154,15 @@ export function Header() {
     dropdownTimeoutRef.current = setTimeout(() => setOpenDropdown(null), 150);
   };
 
-  // Close dropdown on route change
-  useEffect(() => {
+  // Close mobile menu, notifications and dropdown on route change
+  // (state adjusted during render instead of in an effect)
+  const [prevPathname, setPrevPathname] = useState(pathname);
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname);
+    setMobileMenuOpen(false);
+    setShowNotifications(false);
     setOpenDropdown(null);
-  }, [pathname]);
+  }
 
   const navLinkClass =
     "text-sm font-medium text-amber-200/80 transition-colors hover:text-amber-100";

@@ -10,15 +10,15 @@ function VerifyEmailContent() {
   const token = searchParams.get("token");
   const t = useTranslations("auth");
   const tc = useTranslations("common");
-  const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
-  const [message, setMessage] = useState("");
+  const [fetchStatus, setStatus] = useState<"loading" | "success" | "error">("loading");
+  const [fetchMessage, setMessage] = useState("");
+
+  // A missing token is known during render; only a present token needs the API.
+  const status = token ? fetchStatus : "error";
+  const message = token ? fetchMessage : t("missingToken");
 
   useEffect(() => {
-    if (!token) {
-      setStatus("error");
-      setMessage(t("missingToken"));
-      return;
-    }
+    if (!token) return;
 
     fetch(`/api/auth/verify-email?token=${token}`)
       .then(async (res) => {
