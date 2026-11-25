@@ -10,6 +10,7 @@ import {
   saveFile,
   readStoredFile,
   openStoredFile,
+  storedFilePath,
   deleteStoredFile,
   listFiles,
 } from "@/lib/storage";
@@ -126,5 +127,20 @@ describe("file operations", () => {
       { key: "u2/sub/b.pdf", size: 3 },
     ]);
     expect(await listFiles("covers")).toEqual([]);
+  });
+});
+
+describe("storedFilePath", () => {
+  it("returns the absolute path of an existing file and null otherwise", async () => {
+    const ref = await saveFile("ebooks", "u1/1_book.pdf", Buffer.from("pdf"));
+    expect(await storedFilePath(ref)).toBe(path.join(root, "ebooks", "u1", "1_book.pdf"));
+    expect(await storedFilePath("ebooks/u1/missing.pdf")).toBeNull();
+    expect(await storedFilePath("secrets/u1/x")).toBeNull();
+    expect(await storedFilePath(null)).toBeNull();
+  });
+
+  it("returns null for a directory", async () => {
+    await mkdir(path.join(root, "ebooks", "u1", "dir"), { recursive: true });
+    expect(await storedFilePath("ebooks/u1/dir")).toBeNull();
   });
 });
