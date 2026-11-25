@@ -186,6 +186,7 @@
     "metadataSearchError": "Error searching metadata",
     "metadataSessionExpired": "Your session has expired, please sign in again to extract metadata",
     "metadataFileTooLarge": "The file is too large (max. 100 MB), metadata cannot be extracted",
+    "uploadFileTooLarge": "The file is too large, uploads are limited to 100 MB",
     "searchNetworkError": "Network error during search",
     "categoryOptional": "Category (optional)",
     "topicsOptional": "Topics (optional)",
