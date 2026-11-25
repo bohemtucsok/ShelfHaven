@@ -8,9 +8,11 @@ import os
 import json
 import re
 import shutil
+import signal
 import subprocess
 import tempfile
 import threading
+import time
 import zipfile
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
@@ -77,6 +79,101 @@ SCENE_BREAK = re.compile(
 SEMAPHORE = threading.Semaphore(2)
 CONVERSION_TIMEOUT = 300  # 5 minutes
 
+MB = 1024 * 1024
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        value = int(os.environ.get(name, default))
+        return value if value > 0 else default
+    except ValueError:
+        return default
+
+
+# Zip limits for post-processing calibre's EPUB output. Python's zipfile never
+# returns more than the size declared for an entry (it stops there and fails
+# the CRC check), so checking the declared sizes bounds memory and CPU.
+ZIP_MAX_ENTRIES = _env_int("CALIBRE_ZIP_MAX_ENTRIES", 10000)
+ZIP_MAX_TOTAL_BYTES = _env_int("CALIBRE_ZIP_MAX_TOTAL_MB", 256) * MB
+ZIP_MAX_ENTRY_BYTES = _env_int("CALIBRE_ZIP_MAX_ENTRY_MB", 64) * MB
+
+
+class ZipLimitExceeded(Exception):
+    pass
+
+
+def open_limited_zip(data: bytes) -> zipfile.ZipFile:
+    """Open an EPUB for reading after checking entry count and declared sizes.
+    Raises ZipLimitExceeded (or BadZipFile) instead of returning a risky archive."""
+    zf = zipfile.ZipFile(io.BytesIO(data), 'r')
+    try:
+        infos = zf.infolist()
+        if len(infos) > ZIP_MAX_ENTRIES:
+            raise ZipLimitExceeded(f"too many entries ({len(infos)} > {ZIP_MAX_ENTRIES})")
+        total = 0
+        for info in infos:
+            if info.file_size > ZIP_MAX_ENTRY_BYTES:
+                raise ZipLimitExceeded(
+                    f"entry {info.filename} too large ({info.file_size} > {ZIP_MAX_ENTRY_BYTES})"
+                )
+            total += info.file_size
+        if total > ZIP_MAX_TOTAL_BYTES:
+            raise ZipLimitExceeded(f"uncompressed size too large ({total} > {ZIP_MAX_TOTAL_BYTES})")
+    except Exception:
+        zf.close()
+        raise
+    return zf
+
+
+def kill_process_group(pgid: int) -> None:
+    """SIGKILL every process in the group (ebook-convert and its workers)."""
+    try:
+        os.killpg(pgid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        pass
+
+
+def reap_process_group(pgid: int, wait_seconds: float = 2.0) -> None:
+    """Reap killed group members that were re-parented to us (we are PID 1 in
+    the container), so they do not linger as zombies and eat the pids limit."""
+    deadline = time.monotonic() + wait_seconds
+    while True:
+        try:
+            pid, _ = os.waitpid(-pgid, os.WNOHANG)
+        except ChildProcessError:
+            return  # no (more) children in that group
+        if pid == 0:
+            if time.monotonic() >= deadline:
+                return
+            time.sleep(0.05)
+
+
+def run_conversion(cmd: list, timeout: int) -> subprocess.CompletedProcess:
+    """Like subprocess.run(capture_output=True, text=True, timeout=...), but the
+    command runs in its own session and, on timeout (and after a normal exit),
+    the WHOLE process group is killed, so no worker is left running.
+
+    Output goes to temporary files (in /tmp, a tmpfs in the container) instead
+    of pipes: a leftover worker that inherited the pipe would otherwise keep
+    communicate() waiting even after ebook-convert itself has exited."""
+    with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
+        proc = subprocess.Popen(cmd, stdout=out, stderr=err, start_new_session=True)
+        pgid = proc.pid
+        try:
+            proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            kill_process_group(pgid)
+            proc.wait(timeout=10)
+            raise
+        finally:
+            kill_process_group(pgid)
+            reap_process_group(pgid)
+        out.seek(0)
+        err.seek(0)
+        stdout = out.read().decode("utf-8", errors="replace")
+        stderr = err.read().decode("utf-8", errors="replace")
+    return subprocess.CompletedProcess(cmd, proc.returncode, stdout, stderr)
+
 
 def log(msg: str):
     """Print with immediate flush for Docker log visibility."""
@@ -95,7 +192,7 @@ def split_chapters_in_epub(epub_data: bytes) -> bytes:
     """Split HTML files at chapter boundaries so each chapter gets its own file.
     This ensures EPUB readers start each chapter on a new page."""
     try:
-        input_zip = zipfile.ZipFile(io.BytesIO(epub_data), 'r')
+        input_zip = open_limited_zip(epub_data)
         output_buffer = io.BytesIO()
         output_zip = zipfile.ZipFile(output_buffer, 'w', zipfile.ZIP_DEFLATED)
 
@@ -272,7 +369,7 @@ def relocate_trailing_headings(epub_data: bytes) -> bytes:
     Calibre often places the next chapter's heading at the end of the current file,
     causing empty pages in EPUB readers. This moves each heading to where it belongs."""
     try:
-        input_zip = zipfile.ZipFile(io.BytesIO(epub_data), 'r')
+        input_zip = open_limited_zip(epub_data)
 
         # Parse content.opf for spine order
         opf = input_zip.read('content.opf').decode('utf-8')
@@ -434,7 +531,7 @@ def relocate_trailing_headings(epub_data: bytes) -> bytes:
 def center_chapter_headings(epub_data: bytes) -> bytes:
     """Add text-align:center to chapter heading h2 elements and scenebreaks via CSS."""
     try:
-        input_zip = zipfile.ZipFile(io.BytesIO(epub_data), 'r')
+        input_zip = open_limited_zip(epub_data)
         output_buffer = io.BytesIO()
         output_zip = zipfile.ZipFile(output_buffer, 'w', zipfile.ZIP_DEFLATED)
 
@@ -493,7 +590,7 @@ def post_process_epub(epub_data: bytes) -> bytes:
     """Full post-processing pipeline: clean up + split + relocate + style."""
     try:
         # Step 1: Clean page numbers and separators
-        input_zip = zipfile.ZipFile(io.BytesIO(epub_data), 'r')
+        input_zip = open_limited_zip(epub_data)
         output_buffer = io.BytesIO()
         output_zip = zipfile.ZipFile(output_buffer, 'w', zipfile.ZIP_DEFLATED)
         total_removed = 0
@@ -632,12 +729,7 @@ class ConvertHandler(BaseHTTPRequestHandler):
                 ])
 
             log(f"Converting {filename} ({len(file_data)} bytes, format: {ext})...")
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=CONVERSION_TIMEOUT,
-            )
+            result = run_conversion(cmd, CONVERSION_TIMEOUT)
 
             if result.returncode != 0:
                 error_msg = result.stderr.strip() or result.stdout.strip() or "Unknown error"

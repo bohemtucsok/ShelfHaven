@@ -3,6 +3,8 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { BUCKETS, listFiles, saveFile, deleteStoredFile, parseStorageRef, toStorageRef, type Bucket } from "@/lib/storage";
 import { updateProgress, completeOperation } from "./progress-store";
+import { getRestoreZipLimits, type RestoreZipLimits } from "./restore-limits";
+import { checkEocdEntryCount, checkDeclaredSizes, readEntryLimited, type ZipLimitViolation } from "@/lib/zip/limits";
 import type { RestoreMode, DatabaseExport, RestoreResult } from "./types";
 
 const manifestSchema = z.object({
@@ -13,6 +15,31 @@ const manifestSchema = z.object({
   counts: z.record(z.string(), z.number()),
   databaseChecksum: z.string(),
 });
+
+const MB = 1024 * 1024;
+
+function describeViolation(v: ZipLimitViolation, limits: RestoreZipLimits): string {
+  switch (v.kind) {
+    case "file_count":
+      return `too many files (${v.fileCount}, limit ${limits.maxFileCount}, RESTORE_ZIP_MAX_FILES)`;
+    case "total_size":
+      return `uncompressed size too large (${Math.ceil(v.totalUncompressed / MB)} MB, limit ${Math.floor(limits.maxTotalUncompressedBytes / MB)} MB, RESTORE_ZIP_MAX_TOTAL_MB)`;
+    case "ratio":
+      return `compression ratio too high (${v.ratio.toFixed(0)}:1, limit ${limits.maxCompressionRatio}:1, RESTORE_ZIP_MAX_RATIO)`;
+  }
+}
+
+/** Read a ZIP entry with a byte limit; throws a descriptive error if it is too large. */
+async function readEntryOrThrow(file: JSZip.JSZipObject, maxBytes: number, envName: string): Promise<Buffer> {
+  const result = await readEntryLimited(file, maxBytes);
+  if (result.ok) return result.data;
+  if (result.reason === "too_large") {
+    throw new Error(
+      `Invalid backup: ${file.name} exceeds ${Math.floor(maxBytes / MB)} MB when decompressed (${envName})`
+    );
+  }
+  throw new Error(`Invalid backup: ${file.name} could not be decompressed`);
+}
 
 export async function restoreBackup(
   operationId: string,
@@ -27,13 +54,28 @@ export async function restoreBackup(
     // Phase 1: Read and validate ZIP (0-5%)
     updateProgress(operationId, { step: "validate", message: "Reading ZIP archive...", percentage: 2 });
 
+    // Zip bomb protection: everything is checked here, before anything is
+    // wiped or written, so a rejected archive leaves the current data intact.
+    const limits = getRestoreZipLimits();
+    const eocdViolation = checkEocdEntryCount(new Uint8Array(zipBuffer), limits);
+    if (eocdViolation) {
+      throw new Error(`Invalid backup: ${describeViolation(eocdViolation, limits)}`);
+    }
+
     const zip = await JSZip.loadAsync(zipBuffer);
+    const sizeViolation = checkDeclaredSizes(zip, zipBuffer.byteLength, limits);
+    if (sizeViolation) {
+      throw new Error(`Invalid backup: ${describeViolation(sizeViolation, limits)}`);
+    }
+
     const manifestFile = zip.file("manifest.json");
     if (!manifestFile) {
       throw new Error("Invalid backup: missing manifest.json");
     }
 
-    const manifestRaw = JSON.parse(await manifestFile.async("string"));
+    const manifestRaw = JSON.parse(
+      (await readEntryOrThrow(manifestFile, limits.maxManifestBytes, "manifest.json limit")).toString("utf8")
+    );
     const manifestResult = manifestSchema.safeParse(manifestRaw);
     if (!manifestResult.success) {
       throw new Error("Invalid backup: manifest.json validation failed");
@@ -45,7 +87,22 @@ export async function restoreBackup(
     }
 
     updateProgress(operationId, { step: "validate", message: "Parsing database...", percentage: 5 });
-    const db: DatabaseExport = JSON.parse(await dbFile.async("string"));
+    const db: DatabaseExport = JSON.parse(
+      (await readEntryOrThrow(dbFile, limits.maxDatabaseJsonBytes, "RESTORE_ZIP_MAX_DATABASE_MB")).toString("utf8")
+    );
+
+    // Declared sizes can lie: decompress every stored file once with the
+    // per-file limit (data is discarded) so an oversized entry is caught now,
+    // not halfway through the restore.
+    const filesFolder = zip.folder("files");
+    const fileEntries = filesFolder ? collectFileEntries(filesFolder) : [];
+    if (filesFolder) {
+      updateProgress(operationId, { step: "validate", message: "Checking stored files...", percentage: 7 });
+      for (const entry of fileEntries) {
+        const file = filesFolder.file(entry.path);
+        if (file) await readEntryOrThrow(file, limits.maxFileEntryBytes, "RESTORE_ZIP_MAX_FILE_MB");
+      }
+    }
 
     // Phase 2: Wipe existing data if mode === "wipe" (10-20%)
     if (mode === "wipe") {
@@ -65,20 +122,7 @@ export async function restoreBackup(
     });
 
     // Phase 4: Restore stored files (50-95%)
-    const filesFolder = zip.folder("files");
     if (filesFolder) {
-      const fileEntries: { path: string; bucket: Bucket; key: string }[] = [];
-      filesFolder.forEach((relativePath, file) => {
-        if (!file.dir) {
-          const parts = relativePath.split("/");
-          const bucket = parts[0]; // "ebooks" or "covers"
-          const key = parts.slice(1).join("/");
-          if ((BUCKETS as readonly string[]).includes(bucket) && key) {
-            fileEntries.push({ path: relativePath, bucket: bucket as Bucket, key });
-          }
-        }
-      });
-
       for (let i = 0; i < fileEntries.length; i++) {
         const entry = fileEntries[i];
         const pct = 50 + Math.round(((i + 1) / fileEntries.length) * 45);
@@ -91,9 +135,10 @@ export async function restoreBackup(
         });
 
         try {
-          const fileData = await filesFolder.file(entry.path)?.async("uint8array");
-          if (fileData) {
-            await saveFile(entry.bucket, entry.key, fileData);
+          const file = filesFolder.file(entry.path);
+          const read = file ? await readEntryLimited(file, limits.maxFileEntryBytes) : null;
+          if (read?.ok) {
+            await saveFile(entry.bucket, entry.key, read.data);
             filesRestored++;
           }
         } catch {
@@ -123,6 +168,22 @@ export async function restoreBackup(
       stats: { tablesRestored: 0, recordsRestored, filesRestored, duration: (Date.now() - startTime) / 1000 },
     };
   }
+}
+
+// Stored files under files/<bucket>/<key>, only known buckets
+function collectFileEntries(filesFolder: JSZip): { path: string; bucket: Bucket; key: string }[] {
+  const fileEntries: { path: string; bucket: Bucket; key: string }[] = [];
+  filesFolder.forEach((relativePath, file) => {
+    if (!file.dir) {
+      const parts = relativePath.split("/");
+      const bucket = parts[0]; // "ebooks" or "covers"
+      const key = parts.slice(1).join("/");
+      if ((BUCKETS as readonly string[]).includes(bucket) && key) {
+        fileEntries.push({ path: relativePath, bucket: bucket as Bucket, key });
+      }
+    }
+  });
+  return fileEntries;
 }
 
 // Delete all records in reverse FK order

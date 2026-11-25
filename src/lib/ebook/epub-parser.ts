@@ -1,4 +1,5 @@
 import JSZip from "jszip";
+import { checkEocdEntryCount, checkDeclaredSizes, readEntryLimited } from "@/lib/zip/limits";
 
 export interface EpubMetadata {
   title?: string;
@@ -36,78 +37,25 @@ export const EPUB_ZIP_LIMITS = {
   maxCoverImageBytes: 20 * 1024 * 1024,
 } as const;
 
-/** Private JSZip field holding the sizes read from the central directory. */
-interface ZipEntryDeclaredSizes {
-  _data?: { compressedSize?: number; uncompressedSize?: number };
-}
-
 /**
- * Read the entry count from the ZIP end-of-central-directory record without
- * parsing the archive, so a huge central directory is rejected before JSZip
- * builds an object per entry. Returns null if not found or ZIP64 (0xFFFF).
+ * Decompress one entry with a hard byte limit; logs and returns null if the
+ * entry is too large or cannot be decompressed.
  */
-function readEocdEntryCount(buffer: Buffer): number | null {
-  const EOCD_SIGNATURE = 0x06054b50;
-  const EOCD_MIN_SIZE = 22;
-  const minOffset = Math.max(0, buffer.length - EOCD_MIN_SIZE - 0xffff);
-  for (let i = buffer.length - EOCD_MIN_SIZE; i >= minOffset; i--) {
-    if (buffer.readUInt32LE(i) === EOCD_SIGNATURE) {
-      const total = buffer.readUInt16LE(i + 10);
-      return total === 0xffff ? null : total;
-    }
+async function readEpubEntryLimited(file: JSZip.JSZipObject, maxBytes: number): Promise<Buffer | null> {
+  const result = await readEntryLimited(file, maxBytes);
+  if (result.ok) return result.data;
+  if (result.reason === "too_large") {
+    console.warn(
+      `[epub-parser] Entry "${file.name}" exceeds ${maxBytes} bytes when decompressed, skipping`
+    );
   }
   return null;
-}
-
-/**
- * Decompress one ZIP entry, aborting as soon as more than `maxBytes` came out.
- * Resolves to null if the entry is too large or cannot be decompressed.
- */
-function readEntryLimited(
-  file: JSZip.JSZipObject,
-  maxBytes: number
-): Promise<Buffer | null> {
-  return new Promise((resolve) => {
-    let settled = false;
-    const finish = (value: Buffer | null) => {
-      if (settled) return;
-      settled = true;
-      resolve(value);
-    };
-
-    let stream: NodeJS.ReadableStream;
-    try {
-      stream = file.nodeStream("nodebuffer");
-    } catch {
-      finish(null);
-      return;
-    }
-
-    const chunks: Buffer[] = [];
-    let total = 0;
-    stream.on("data", (chunk: Buffer) => {
-      if (settled) return;
-      total += chunk.length;
-      if (total > maxBytes) {
-        console.warn(
-          `[epub-parser] Entry "${file.name}" exceeds ${maxBytes} bytes when decompressed, skipping`
-        );
-        stream.pause();
-        (stream as { destroy?: () => void }).destroy?.();
-        finish(null);
-        return;
-      }
-      chunks.push(chunk);
-    });
-    stream.on("end", () => finish(Buffer.concat(chunks)));
-    stream.on("error", () => finish(null));
-  });
 }
 
 async function readTextEntryLimited(zip: JSZip, path: string): Promise<string | null> {
   const file = zip.file(path);
   if (!file) return null;
-  const data = await readEntryLimited(file, EPUB_ZIP_LIMITS.maxXmlEntryBytes);
+  const data = await readEpubEntryLimited(file, EPUB_ZIP_LIMITS.maxXmlEntryBytes);
   return data ? data.toString("utf8") : null;
 }
 
@@ -117,9 +65,9 @@ async function readTextEntryLimited(zip: JSZip, path: string): Promise<string | 
  */
 export async function parseEpub(buffer: Buffer): Promise<EpubMetadata> {
   // Zip bomb protection (1): entry count from the EOCD, before parsing
-  const declaredEntries = readEocdEntryCount(buffer);
-  if (declaredEntries !== null && declaredEntries > EPUB_ZIP_LIMITS.maxFileCount) {
-    console.warn(`[epub-parser] Suspicious file count: ${declaredEntries} exceeds limit`);
+  const eocdViolation = checkEocdEntryCount(buffer, EPUB_ZIP_LIMITS);
+  if (eocdViolation?.kind === "file_count") {
+    console.warn(`[epub-parser] Suspicious file count: ${eocdViolation.fileCount} exceeds limit`);
     return {};
   }
 
@@ -131,31 +79,18 @@ export async function parseEpub(buffer: Buffer): Promise<EpubMetadata> {
   }
 
   // Zip bomb protection (1): declared sizes from the central directory
-  let fileCount = 0;
-  let totalUncompressed = 0;
-  zip.forEach((_, file) => {
-    if (file.dir) return;
-    fileCount++;
-    totalUncompressed += (file as unknown as ZipEntryDeclaredSizes)._data?.uncompressedSize ?? 0;
-  });
-  if (fileCount > EPUB_ZIP_LIMITS.maxFileCount) {
-    console.warn(`[epub-parser] Suspicious file count: ${fileCount} exceeds limit`);
+  const violation = checkDeclaredSizes(zip, buffer.length, EPUB_ZIP_LIMITS);
+  if (violation) {
+    if (violation.kind === "file_count") {
+      console.warn(`[epub-parser] Suspicious file count: ${violation.fileCount} exceeds limit`);
+    } else if (violation.kind === "total_size") {
+      console.warn(`[epub-parser] Suspicious: declared uncompressed size ${violation.totalUncompressed} exceeds limit`);
+    } else {
+      console.warn(`[epub-parser] Suspicious compression ratio: ${violation.ratio.toFixed(0)}:1 exceeds limit`);
+    }
     return {};
   }
-  if (totalUncompressed > EPUB_ZIP_LIMITS.maxTotalUncompressedBytes) {
-    console.warn(`[epub-parser] Suspicious: declared uncompressed size ${totalUncompressed} exceeds limit`);
-    return {};
-  }
-  if (
-    buffer.length > 0 &&
-    totalUncompressed > EPUB_ZIP_LIMITS.ratioCheckMinUncompressedBytes &&
-    totalUncompressed / buffer.length > EPUB_ZIP_LIMITS.maxCompressionRatio
-  ) {
-    console.warn(
-      `[epub-parser] Suspicious compression ratio: ${(totalUncompressed / buffer.length).toFixed(0)}:1 exceeds limit`
-    );
-    return {};
-  }
+  const fileCount = zip.filter((_, file) => !file.dir).length;
   // Many tiny entries are suspicious even if the declared sizes are small
   if (buffer.length > 0 && fileCount > 0) {
     const avgFileSize = buffer.length / fileCount;
@@ -283,7 +218,7 @@ async function loadImage(
   if (!file) return null;
 
   try {
-    const data = await readEntryLimited(file, EPUB_ZIP_LIMITS.maxCoverImageBytes);
+    const data = await readEpubEntryLimited(file, EPUB_ZIP_LIMITS.maxCoverImageBytes);
     if (!data) return null;
     const ext = path.split(".").pop()?.toLowerCase() || "jpg";
     const contentTypeMap: Record<string, string> = {
