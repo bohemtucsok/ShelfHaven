@@ -51,6 +51,16 @@ npm-build-check:
   rules:
     - if: '$CI_COMMIT_BRANCH == "master"'
 
+lint:
+  stage: test
+  image: node:22-slim
+  script:
+    - npm ci --legacy-peer-deps --silent
+    - npx eslint . --max-warnings=0
+  allow_failure: false
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+
 unit-tests:
   stage: test
   image: node:22-slim
@@ -113,6 +123,7 @@ github-mirror:
     - npm-audit
     - secret-scan
     - npm-build-check
+    - lint
     - unit-tests
     - trivy-scan
     - publish-harbor

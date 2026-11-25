@@ -2,7 +2,6 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
 import { useSession } from "next-auth/react";
 import SaveToLibraryButton from "@/components/bookshelf/SaveToLibraryButton";
 
@@ -16,7 +15,6 @@ interface TrendingBook {
 }
 
 export default function TrendingCard({ book, rank }: { book: TrendingBook; rank: number }) {
-  const t = useTranslations("discover");
   const { data: session } = useSession();
 
   return (

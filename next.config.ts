@@ -3,7 +3,6 @@ import withPWAInit from "@ducanh2912/next-pwa";
 import createNextIntlPlugin from "next-intl/plugin";
 
 const isProd = process.env.NODE_ENV === "production";
-const publicDomain = process.env.NEXTAUTH_URL || "http://localhost:3000";
 
 const withPWA = withPWAInit({
   dest: "public",

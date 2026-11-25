@@ -8,13 +8,11 @@ import { toast } from "sonner";
 interface FollowButtonProps {
   userId: string;
   initialFollowing?: boolean;
-  initialCount?: number;
 }
 
-export default function FollowButton({ userId, initialFollowing, initialCount }: FollowButtonProps) {
+export default function FollowButton({ userId, initialFollowing }: FollowButtonProps) {
   const t = useTranslations("follow");
   const [following, setFollowing] = useState(initialFollowing ?? false);
-  const [followerCount, setFollowerCount] = useState(initialCount ?? 0);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -23,7 +21,6 @@ export default function FollowButton({ userId, initialFollowing, initialCount }:
       .then((r) => r.json())
       .then((data) => {
         setFollowing(data.following);
-        setFollowerCount(data.followerCount);
       })
       .catch(() => {});
   }, [userId, initialFollowing]);
@@ -38,7 +35,6 @@ export default function FollowButton({ userId, initialFollowing, initialCount }:
       if (!res.ok) throw new Error();
       const data = await res.json();
       setFollowing(data.following);
-      setFollowerCount(data.followerCount);
       toast.success(data.following ? t("followSuccess") : t("unfollowSuccess"));
     } catch {
       toast.error("Hiba történt");

@@ -1,4 +1,4 @@
-import NextAuth, { type NextAuthConfig } from "next-auth";
+import NextAuth, { type NextAuthConfig, type Session } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
@@ -69,7 +69,7 @@ async function loadOidcSettings(): Promise<OidcConfig | null> {
 // Build the NextAuth config dynamically
 // ---------------------------------------------------------------------------
 
-function buildAuthConfig(oidcConfig: OidcConfig | null) {
+function buildAuthConfig(oidcConfig: OidcConfig | null): NextAuthConfig {
   // Determine HTTPS from NEXTAUTH_URL/AUTH_URL (not NODE_ENV) — allows production builds on HTTP localhost
   const authUrl = process.env.AUTH_URL || process.env.NEXTAUTH_URL || "";
   const isHttps = authUrl.startsWith("https://");
@@ -199,7 +199,7 @@ function buildAuthConfig(oidcConfig: OidcConfig | null) {
     },
     providers,
     callbacks: {
-      async session({ session, token }: { session: any; token: any }) {
+      async session({ session, token }) {
         if (token.sub && session.user) {
           session.user.id = token.sub;
           session.user.role = (token.role as "USER" | "ADMIN") || "USER";
@@ -213,7 +213,7 @@ function buildAuthConfig(oidcConfig: OidcConfig | null) {
         }
         return session;
       },
-      async jwt({ token, user, trigger }: { token: any; user?: any; account?: any; trigger?: string }) {
+      async jwt({ token, user, trigger }) {
         if (trigger === "update" && token.sub) {
           // Session update requested (e.g. view mode change) — refresh from DB
           try {
@@ -326,18 +326,16 @@ export function refreshAuthInstance() {
 // ---------------------------------------------------------------------------
 
 // `auth()` - get session (used in Server Components, API routes, admin helper)
-export async function auth(...args: any[]) {
+export async function auth(): Promise<Session | null> {
   const inst = await getInstance();
-  return (inst.auth as any)(...args);
+  return inst.auth();
 }
 
 // Strip Max-Age and Expires from session-token cookie so it becomes a true
 // session cookie (deleted when the browser closes).  Auth.js v5 forces
 // expires based on session.maxAge; we undo that here after the response.
 function stripSessionCookieExpiry(response: Response): Response {
-  const setCookies = (response.headers as any).getSetCookie?.() as
-    | string[]
-    | undefined;
+  const setCookies: string[] | undefined = response.headers.getSetCookie?.();
   if (!setCookies || setCookies.length === 0) return response;
 
   const newHeaders = new Headers(response.headers);
@@ -385,12 +383,16 @@ export const handlers = {
 };
 
 // `signIn` / `signOut` - used in server actions
-export async function signIn(...args: any[]) {
+export async function signIn(
+  ...args: Parameters<AuthInstance["signIn"]>
+): ReturnType<AuthInstance["signIn"]> {
   const inst = await getInstance();
-  return (inst.signIn as any)(...args);
+  return inst.signIn(...args);
 }
 
-export async function signOut(...args: any[]) {
+export async function signOut(
+  ...args: Parameters<AuthInstance["signOut"]>
+): ReturnType<AuthInstance["signOut"]> {
   const inst = await getInstance();
-  return (inst.signOut as any)(...args);
+  return inst.signOut(...args);
 }

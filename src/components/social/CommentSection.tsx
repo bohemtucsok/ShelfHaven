@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -20,7 +20,7 @@ export default function CommentSection({ bookId }: CommentSectionProps) {
   const [newComment, setNewComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const fetchComments = async (p: number) => {
+  const fetchComments = useCallback(async (p: number) => {
     try {
       const res = await fetch(`/api/books/${bookId}/comments?page=${p}&limit=10`);
       const data = await res.json();
@@ -31,11 +31,11 @@ export default function CommentSection({ bookId }: CommentSectionProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [bookId]);
 
   useEffect(() => {
     fetchComments(1);
-  }, [bookId]);
+  }, [fetchComments]);
 
   const handleSubmit = async () => {
     if (!newComment.trim()) return;

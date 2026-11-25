@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
@@ -27,14 +27,7 @@ export default function FollowersList({ userId, type, isOpen, onClose }: Followe
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    setPage(1);
-    setUsers([]);
-    fetchPage(1);
-  }, [isOpen, userId, type]);
-
-  const fetchPage = async (p: number) => {
+  const fetchPage = useCallback(async (p: number) => {
     setLoading(true);
     try {
       const res = await fetch(`/api/users/${userId}/${type}?page=${p}&limit=20`);
@@ -47,7 +40,14 @@ export default function FollowersList({ userId, type, isOpen, onClose }: Followe
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId, type]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setPage(1);
+    setUsers([]);
+    fetchPage(1);
+  }, [isOpen, fetchPage]);
 
   const loadMore = () => {
     const next = page + 1;

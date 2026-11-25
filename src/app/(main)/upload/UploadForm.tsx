@@ -9,17 +9,6 @@ import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { matchCategoriesAndTopics } from "@/lib/ebook/category-matcher";
 
-const SUPPORTED_FORMATS = [
-  "application/epub+zip",
-  "application/pdf",
-  "application/x-mobipocket-ebook",
-  "application/vnd.amazon.ebook",
-  "application/x-fictionbook+xml",
-  "application/x-cbr",
-  "application/x-cbz",
-  "image/vnd.djvu",
-];
-
 const FORMAT_LABELS: Record<string, string> = {
   "application/epub+zip": "EPUB",
   "application/pdf": "PDF",

@@ -11,3 +11,13 @@ declare module "next-auth" {
     } & DefaultSession["user"];
   }
 }
+
+declare module "@auth/core/jwt" {
+  interface JWT {
+    role?: "USER" | "ADMIN";
+    language?: string;
+    theme?: string;
+    defaultView?: string;
+    lastVerified?: number;
+  }
+}

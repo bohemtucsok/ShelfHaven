@@ -3,9 +3,97 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
 
-// epub.js doesn't have @types, use dynamic import
-type EpubBook = any;
-type EpubRendition = any;
+// epub.js ships its own (partial) type definitions
+type EpubBook = import("epubjs").Book;
+type EpubRendition = import("epubjs").Rendition;
+
+// Gaps in the bundled epub.js typings: Spine exposes a runtime `length`, and
+// Section.find() resolves to { cfi, excerpt } matches (typed as Element[]).
+type EpubSpine = EpubBook["spine"] & { length: number };
+interface EpubSearchMatch {
+  cfi: string;
+  excerpt: string;
+}
+
+// Minimal shape of epub.js internals touched by patchManagerScrolling().
+// The default manager (managers/default) is not part of the public typings.
+// At runtime Section.next()/prev() return the neighbouring Section (or
+// undefined at the ends); the bundled typings declare a plain SpineItem.
+type ManagerSection = Omit<ReturnType<EpubSpine["get"]>, "next" | "prev"> & {
+  next(): ManagerSection | undefined;
+  prev(): ManagerSection | undefined;
+};
+type EpubContents = import("epubjs").Contents;
+
+interface ManagerBounds {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+interface ManagerView {
+  section: ManagerSection;
+  contents: EpubContents;
+  position(): DOMRect;
+  width(): number;
+}
+
+interface ManagerViews {
+  length: number;
+  first(): ManagerView;
+  last(): ManagerView;
+  show(): void;
+  hide(): void;
+  clear(): void;
+}
+
+type ManagerAddFn = (this: EpubManager, section: ManagerSection, forceRight: boolean) => Promise<unknown>;
+
+interface EpubManager {
+  container: HTMLElement;
+  settings: { direction?: string; axis?: string; fullsize?: boolean };
+  views: ManagerViews;
+  layout: {
+    name: string;
+    divisor: number;
+    delta: number;
+    width: number;
+    height: number;
+    pageWidth: number;
+    count(totalLength: number): { spreads: number; pages: number };
+  };
+  mapping: {
+    page(contents: EpubContents, cfiBase: string, start: number, end: number): unknown;
+  };
+  isPaginated: boolean;
+  ignore: boolean;
+  scrolled: boolean;
+  scrollLeft: number;
+  scrollTop: number;
+  append: ManagerAddFn;
+  prepend: ManagerAddFn;
+  handleNextPrePaginated(forceRight: boolean, section: ManagerSection, action: ManagerAddFn): unknown;
+  updateLayout(): void;
+  visible(): ManagerView[];
+  bounds(): ManagerBounds;
+  scrollTo(x: number, y: number, silent?: boolean): void;
+  scrollBy(x: number, y: number, silent?: boolean): void;
+  next(): Promise<void> | void;
+  prev(): Promise<void> | void;
+  _handleSectionChange(section: ManagerSection, direction: string): Promise<void>;
+  clear(): void;
+  paginatedLocation(): unknown[];
+  isVisible(view: ManagerView, offsetPrev: number, offsetNext: number, _container?: ManagerBounds): boolean;
+  moveTo(offset: { left: number; top: number }, width?: number): void;
+}
+
+const HIGHLIGHT_COLOR_LABEL_KEYS = {
+  yellow: "colorYellow",
+  green: "colorGreen",
+  blue: "colorBlue",
+  pink: "colorPink",
+} as const;
 
 interface TocItem {
   id: string;
@@ -30,8 +118,8 @@ interface EpubReaderProps {
  * though the scrollLeft value updates.  By switching to translateX on the
  * inner view wrapper we get a reliable, GPU-accelerated visual page change.
  */
-function patchManagerScrolling(rendition: any) {
-  const manager = rendition?.manager;
+function patchManagerScrolling(rendition: EpubRendition) {
+  const manager = (rendition as EpubRendition & { manager?: EpubManager })?.manager;
   if (!manager || !manager.container) return;
 
   const container = manager.container as HTMLElement;
@@ -179,7 +267,7 @@ function patchManagerScrolling(rendition: any) {
   };
 
   // Helper for section changes (shared by next/prev overrides)
-  manager._handleSectionChange = function (section: any, direction: string) {
+  manager._handleSectionChange = function (section: ManagerSection, direction: string) {
     this.clear();
     this.updateLayout();
 
@@ -198,7 +286,7 @@ function patchManagerScrolling(rendition: any) {
     return addFn.call(this, section, forceRight)
       .then(() => {
         return this.handleNextPrePaginated(forceRight, section, addFn);
-      }, (err: any) => err)
+      }, (err: unknown) => err)
       .then(() => {
         if (direction === "prev" && this.isPaginated && this.settings.axis === "horizontal") {
           // Scroll to last page of the new section
@@ -236,7 +324,7 @@ function patchManagerScrolling(rendition: any) {
       left = window.scrollX;
     }
 
-    const sections = visible.map((view: any) => {
+    const sections = visible.map((view) => {
       const { index, href } = view.section;
       let offset: number;
       const position = view.position();
@@ -290,7 +378,7 @@ function patchManagerScrolling(rendition: any) {
   };
 
   // Patch isVisible to account for transform-based positioning
-  manager.isVisible = function (view: any, offsetPrev: number, offsetNext: number, _container?: any) {
+  manager.isVisible = function (view: ManagerView, offsetPrev: number, offsetNext: number, _container?: ManagerBounds) {
     const position = view.position();
     const containerBounds = _container || this.bounds();
 
@@ -307,7 +395,7 @@ function patchManagerScrolling(rendition: any) {
   };
 
   // Patch moveTo to use our transform-based scrolling
-  manager.moveTo = function (offset: any, width?: number) {
+  manager.moveTo = function (offset: { left: number; top: number }, width?: number) {
     let distX = 0;
     let distY = 0;
 
@@ -565,6 +653,9 @@ export default function EpubReader({ bookId, url, initialCfi, onProgressChange, 
     // Increment init ID so any in-flight async initReader from a previous
     // mount (React StrictMode) will bail out.
     const thisInitId = ++initIdRef.current;
+    // The viewer div is always rendered, so the element is stable for the
+    // lifetime of this effect; capture it for the cleanup below.
+    const viewerEl = viewerRef.current;
     let saveInterval: ReturnType<typeof setInterval>;
 
     async function initReader() {
@@ -635,7 +726,7 @@ export default function EpubReader({ bookId, url, initialCfi, onProgressChange, 
       // into each newly rendered iframe. This is more reliable than
       // themes.override() for font-family because EPUB stylesheets often
       // set font-family on individual elements, not just body.
-      rendition.hooks.content.register((contents: any) => {
+      rendition.hooks.content.register((contents: EpubContents) => {
         try {
           const doc = contents.document;
           if (doc) {
@@ -649,7 +740,7 @@ export default function EpubReader({ bookId, url, initialCfi, onProgressChange, 
       });
 
       // Track page changes (guard against locations not ready)
-      rendition.on("relocated", (location: any) => {
+      rendition.on("relocated", (location: import("epubjs").Location) => {
         if (thisInitId !== initIdRef.current || !locationsReadyRef.current) return;
         try {
           const pct = book.locations.percentageFromCfi(location.start.cfi) * 100;
@@ -676,7 +767,7 @@ export default function EpubReader({ bookId, url, initialCfi, onProgressChange, 
       patchManagerScrolling(rendition);
 
       // Listen for text selection to offer highlight creation
-      rendition.on("selected", (cfiRange: string, contents: any) => {
+      rendition.on("selected", (cfiRange: string, contents: EpubContents) => {
         if (thisInitId !== initIdRef.current) return;
         try {
           const selection = contents.window.getSelection();
@@ -708,7 +799,7 @@ export default function EpubReader({ bookId, url, initialCfi, onProgressChange, 
 
       // Auto-save progress every 30 seconds (with reading time tracking)
       saveInterval = setInterval(() => {
-        if (renditionRef.current?.location?.start?.cfi && locationsReadyRef.current) {
+        if (bookRef.current && renditionRef.current?.location?.start?.cfi && locationsReadyRef.current) {
           const cfi = renditionRef.current.location.start.cfi;
           try {
             const pct = bookRef.current.locations.percentageFromCfi(cfi) * 100;
@@ -744,7 +835,9 @@ export default function EpubReader({ bookId, url, initialCfi, onProgressChange, 
         } catch {}
       }
 
-      // Incrementing initIdRef causes any in-flight async initReader to bail
+      // Incrementing initIdRef causes any in-flight async initReader to bail.
+      // It is a counter, not a DOM ref: the live value must be bumped here.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       initIdRef.current++;
       locationsReadyRef.current = false;
       clearInterval(saveInterval);
@@ -754,13 +847,13 @@ export default function EpubReader({ bookId, url, initialCfi, onProgressChange, 
       }
       renditionRef.current = null;
       // Clean up any DOM elements left by epub.js (critical for React StrictMode)
-      if (viewerRef.current) {
-        while (viewerRef.current.firstChild) {
-          viewerRef.current.removeChild(viewerRef.current.firstChild);
+      if (viewerEl) {
+        while (viewerEl.firstChild) {
+          viewerEl.removeChild(viewerEl.firstChild);
         }
       }
     };
-  }, [url, initialCfi, saveProgress, injectFontFamilyStyle, injectThemeStyle, injectHighlightStyles]);
+  }, [bookId, url, initialCfi, saveProgress, injectFontFamilyStyle, injectThemeStyle, injectHighlightStyles]);
 
   // Resize handler
   useEffect(() => {
@@ -994,13 +1087,13 @@ export default function EpubReader({ bookId, url, initialCfi, onProgressChange, 
     setIsSearching(true);
     try {
       const results: Array<{ cfi: string; excerpt: string }> = [];
-      const spine = book.spine;
+      const spine = book.spine as EpubSpine;
       // epub.js: iterate spine items and search each section
       for (let i = 0; i < spine.length; i++) {
         const item = spine.get(i);
         if (!item) continue;
         await item.load(book.load.bind(book));
-        const found = await item.find(query.trim());
+        const found = (await item.find(query.trim())) as unknown as EpubSearchMatch[];
         if (found && found.length > 0) {
           for (const match of found) {
             results.push({ cfi: match.cfi, excerpt: match.excerpt });
@@ -1495,7 +1588,7 @@ export default function EpubReader({ bookId, url, initialCfi, onProgressChange, 
                     key={color}
                     onClick={() => handleSaveHighlight(color)}
                     className="group flex flex-col items-center gap-1"
-                    title={t(`color${color.charAt(0).toUpperCase() + color.slice(1)}` as any)}
+                    title={t(HIGHLIGHT_COLOR_LABEL_KEYS[color])}
                   >
                     <div
                       className="h-8 w-8 rounded-full border-2 transition-transform group-hover:scale-110"
