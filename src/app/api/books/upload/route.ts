@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
   if (file.size > MAX_UPLOAD_FILE_SIZE) {
     return NextResponse.json(
       { error: "A fájl mérete meghaladja a 100MB limitet" },
-      { status: 400 }
+      { status: 413 }
     );
   }
 
