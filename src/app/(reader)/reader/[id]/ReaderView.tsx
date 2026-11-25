@@ -120,6 +120,9 @@ export default function ReaderView({ bookId }: ReaderViewProps) {
         URL.revokeObjectURL(offlineBlobUrlRef.current);
       }
     };
+    // Must run only per bookId: isBookOffline changes once the offline ids load,
+    // and re-running would refetch and revoke the blob URL the reader is using.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookId]);
 
   if (loading) {

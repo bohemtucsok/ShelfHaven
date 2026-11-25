@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import Link from "next/link";
 import Image from "next/image";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -66,7 +65,6 @@ export default function PublicProfilePage() {
     );
   }
 
-  const initials = (user.name || "?")[0].toUpperCase();
   const memberSince = new Date(user.createdAt).toLocaleDateString(locale === "en" ? "en-US" : "hu-HU", {
     year: "numeric",
     month: "long",

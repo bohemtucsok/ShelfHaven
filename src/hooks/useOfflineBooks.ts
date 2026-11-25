@@ -124,7 +124,14 @@ export function useOfflineBooks() {
       try {
         const data = await get(key) as OfflineBookData | undefined;
         if (data) {
-          const { blob: _, ...meta } = data;
+          const meta: OfflineBookMeta = {
+            bookId: data.bookId,
+            title: data.title,
+            author: data.author,
+            coverUrl: data.coverUrl,
+            savedAt: data.savedAt,
+            fileSize: data.fileSize,
+          };
           books.push(meta);
         }
       } catch {}

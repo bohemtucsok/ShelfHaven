@@ -215,10 +215,9 @@ export default function BookDetail({ bookId, initialBook }: BookDetailProps) {
   }, [bookId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Poll conversion status for pending/converting books
+  const conversionStatus = book?.conversionStatus;
   useEffect(() => {
-    if (!book) return;
-    const status = book.conversionStatus;
-    if (status !== "pending" && status !== "converting") return;
+    if (conversionStatus !== "pending" && conversionStatus !== "converting") return;
 
     const interval = setInterval(async () => {
       try {
@@ -240,7 +239,7 @@ export default function BookDetail({ bookId, initialBook }: BookDetailProps) {
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [book?.conversionStatus, bookId]);
+  }, [conversionStatus, bookId, t]);
 
   useEffect(() => {
     if (!session?.user) return;

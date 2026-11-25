@@ -653,6 +653,9 @@ export default function EpubReader({ bookId, url, initialCfi, onProgressChange, 
     // Increment init ID so any in-flight async initReader from a previous
     // mount (React StrictMode) will bail out.
     const thisInitId = ++initIdRef.current;
+    // The viewer div is always rendered, so the element is stable for the
+    // lifetime of this effect; capture it for the cleanup below.
+    const viewerEl = viewerRef.current;
     let saveInterval: ReturnType<typeof setInterval>;
 
     async function initReader() {
@@ -832,7 +835,9 @@ export default function EpubReader({ bookId, url, initialCfi, onProgressChange, 
         } catch {}
       }
 
-      // Incrementing initIdRef causes any in-flight async initReader to bail
+      // Incrementing initIdRef causes any in-flight async initReader to bail.
+      // It is a counter, not a DOM ref: the live value must be bumped here.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       initIdRef.current++;
       locationsReadyRef.current = false;
       clearInterval(saveInterval);
@@ -842,13 +847,13 @@ export default function EpubReader({ bookId, url, initialCfi, onProgressChange, 
       }
       renditionRef.current = null;
       // Clean up any DOM elements left by epub.js (critical for React StrictMode)
-      if (viewerRef.current) {
-        while (viewerRef.current.firstChild) {
-          viewerRef.current.removeChild(viewerRef.current.firstChild);
+      if (viewerEl) {
+        while (viewerEl.firstChild) {
+          viewerEl.removeChild(viewerEl.firstChild);
         }
       }
     };
-  }, [url, initialCfi, saveProgress, injectFontFamilyStyle, injectThemeStyle, injectHighlightStyles]);
+  }, [bookId, url, initialCfi, saveProgress, injectFontFamilyStyle, injectThemeStyle, injectHighlightStyles]);
 
   // Resize handler
   useEffect(() => {

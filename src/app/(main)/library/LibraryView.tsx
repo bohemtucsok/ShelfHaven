@@ -149,7 +149,7 @@ export default function LibraryView({ initialBooks, initialCategories, initialAu
       return;
     }
     fetchBooks();
-  }, [fetchBooks]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fetchBooks]);
 
   // Compute user-specific category counts from own books
   const userCategories = useMemo(() => {

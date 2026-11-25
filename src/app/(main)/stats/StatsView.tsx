@@ -130,7 +130,6 @@ export default function StatsView() {
   const { summary } = data;
   const isDark = resolvedTheme === "dark";
   const axisColor = isDark ? "#a1947f" : "#92400e";
-  const gridColor = isDark ? "#3d2b1a" : "#fef3c7";
 
   function formatMinutes(mins: number): string {
     if (mins < 60) return `${mins} ${tp("minutes")}`;

@@ -123,7 +123,6 @@ export async function createBackup(operationId: string): Promise<void> {
     backupBuffers.set(operationId, { buffer: zipBuffer, createdAt: Date.now() });
 
     // Save last backup info to Settings
-    const totalRecords = Object.values(manifest.counts).reduce((a, b) => a + b, 0);
     const sizeStr = formatSize(zipBuffer.byteLength);
     await prisma.setting.upsert({
       where: { key: "backup_last_date" },

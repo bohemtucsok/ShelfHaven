@@ -12,10 +12,6 @@ export interface EpubMetadata {
   };
 }
 
-// Zip bomb protection limits
-const MAX_UNCOMPRESSED_SIZE = 500 * 1024 * 1024; // 500MB total uncompressed
-const MAX_COMPRESSION_RATIO = 100; // Max 100:1 ratio
-
 /**
  * Parse an EPUB file buffer and extract metadata + cover image.
  * EPUB is a ZIP archive containing XML files.
