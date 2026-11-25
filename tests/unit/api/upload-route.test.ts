@@ -1,6 +1,9 @@
 // @vitest-environment node
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import JSZip from "jszip";
+import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { NextRequest, NextResponse } from "next/server";
 
 const authMock = vi.fn();
@@ -9,6 +12,7 @@ const bookCreate = vi.fn();
 const saveFileMock = vi.fn();
 const activityMock = vi.fn();
 const securityLogMock = vi.fn();
+const parseEpubSpy = vi.fn();
 
 vi.mock("@/lib/auth", () => ({ auth: () => authMock() }));
 vi.mock("@/lib/rate-limit", () => ({
@@ -19,6 +23,16 @@ vi.mock("@/lib/prisma", () => ({ prisma: { book: { create: (...a: unknown[]) => 
 vi.mock("@/lib/storage", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/storage")>();
   return { ...actual, saveFile: (...a: unknown[]) => saveFileMock(...a) };
+});
+vi.mock("@/lib/ebook/epub-parser", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/ebook/epub-parser")>();
+  return {
+    ...actual,
+    parseEpub: (...a: Parameters<typeof actual.parseEpub>) => {
+      parseEpubSpy(...a);
+      return actual.parseEpub(...a);
+    },
+  };
 });
 vi.mock("@/lib/ebook/cover-utils", () => ({
   downloadAndResizeCover: vi.fn(async () => null),
@@ -38,7 +52,15 @@ const TINY_PNG = Buffer.from([
   0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
 ]);
 
-async function smallEpub(): Promise<Buffer> {
+let smallEpubCache: Promise<Buffer> | null = null;
+
+/** The same EPUB bytes on every call (JSZip stamps entry dates). */
+function smallEpub(): Promise<Buffer> {
+  smallEpubCache ??= buildSmallEpub();
+  return smallEpubCache;
+}
+
+async function buildSmallEpub(): Promise<Buffer> {
   const zip = new JSZip();
   zip.file("mimetype", "application/epub+zip");
   zip.file(
@@ -95,7 +117,27 @@ function streamRequest(stream: ReadableStream<Uint8Array>, headers: Record<strin
   });
 }
 
-beforeEach(() => {
+let storageRoot: string;
+const originalStorageDir = process.env.STORAGE_DIR;
+
+/** Every file left in the storage directory (relative paths), temp files included. */
+async function storageFiles(): Promise<string[]> {
+  const entries = await readdir(storageRoot, { recursive: true, withFileTypes: true });
+  return entries
+    .filter((e) => e.isFile())
+    .map((e) => path.relative(storageRoot, path.join(e.parentPath, e.name)))
+    .sort();
+}
+
+afterEach(async () => {
+  await rm(storageRoot, { recursive: true, force: true });
+  process.env.STORAGE_DIR = originalStorageDir;
+});
+
+beforeEach(async () => {
+  storageRoot = await mkdtemp(path.join(tmpdir(), "shelfhaven-upload-"));
+  process.env.STORAGE_DIR = storageRoot;
+  parseEpubSpy.mockReset();
   authMock.mockReset().mockResolvedValue({ user: { id: "u1" } });
   rateLimitMock.mockReset().mockReturnValue(null);
   bookCreate.mockReset().mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({
@@ -189,13 +231,15 @@ describe("POST /api/books/upload body size limit", () => {
       coverUrl: "/api/books/book1/cover",
     });
 
-    // Stored ebook + EPUB cover
-    expect(saveFileMock).toHaveBeenCalledTimes(2);
-    expect(saveFileMock.mock.calls[0][0]).toBe("ebooks");
-    expect(saveFileMock.mock.calls[0][1]).toBe("u1/1700000000000_kis_konyv.epub");
-    expect(Buffer.isBuffer(saveFileMock.mock.calls[0][2])).toBe(true);
-    expect(saveFileMock.mock.calls[1].slice(0, 2)).toEqual(["covers", "u1/1700000000000_cover_cover.png"]);
-    expect(Buffer.from(saveFileMock.mock.calls[1][2]).equals(TINY_PNG)).toBe(true);
+    // Stored ebook (streamed to a temp file, renamed to its key; no temp file left) ...
+    expect(await storageFiles()).toEqual([path.join("ebooks", "u1", "1700000000000_kis_konyv.epub")]);
+    const stored = await readFile(path.join(storageRoot, "ebooks", "u1", "1700000000000_kis_konyv.epub"));
+    expect(stored.equals(await smallEpub())).toBe(true);
+    expect(parseEpubSpy).toHaveBeenCalledTimes(1);
+    // ... and the EPUB cover
+    expect(saveFileMock).toHaveBeenCalledTimes(1);
+    expect(saveFileMock.mock.calls[0].slice(0, 2)).toEqual(["covers", "u1/1700000000000_cover_cover.png"]);
+    expect(Buffer.from(saveFileMock.mock.calls[0][2]).equals(TINY_PNG)).toBe(true);
 
     // DB row
     expect(bookCreate).toHaveBeenCalledTimes(1);
@@ -213,7 +257,7 @@ describe("POST /api/books/upload body size limit", () => {
       categories: { create: [{ categoryId: "c1" }] },
       topics: { create: [{ topicId: "t1" }] },
     });
-    expect(data.fileSize).toBeGreaterThan(0);
+    expect(data.fileSize).toBe(stored.length);
 
     expect(securityLogMock).toHaveBeenCalledWith("UPLOAD_SUCCESS", expect.objectContaining({ userId: "u1" }));
     expect(activityMock).toHaveBeenCalledWith({ userId: "u1", type: "book_upload", bookId: "book1" });
@@ -252,5 +296,129 @@ describe("POST /api/books/upload body size limit", () => {
       maxRequests: 50,
     });
     expect(authMock).not.toHaveBeenCalled();
+  });
+});
+
+function fileRequest(content: Uint8Array<ArrayBuffer> | string, filename: string, fields: Record<string, string> = {}) {
+  const fd = new FormData();
+  for (const [k, v] of Object.entries(fields)) fd.append(k, v);
+  fd.append("file", new File([content], filename));
+  return new NextRequest(URL_, { method: "POST", body: fd });
+}
+
+/** The raw multipart bytes and content type undici produces for a FormData. */
+async function serialize(fd: FormData) {
+  const req = new Request(URL_, { method: "POST", body: fd });
+  return { bytes: new Uint8Array(await req.arrayBuffer()), contentType: req.headers.get("content-type")! };
+}
+
+describe("POST /api/books/upload streaming (busboy)", () => {
+  it("stores a non-EPUB file without reading it back and starts the conversion", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null));
+    const pdf = Buffer.concat([Buffer.from("%PDF-1.7\n"), Buffer.alloc(2 * MB, 7)]);
+
+    const res = await POST(fileRequest(pdf, "Könyv (1).pdf", { title: "Árvíztűrő" }));
+
+    expect(res.status).toBe(201);
+    expect(await res.json()).toMatchObject({ title: "Árvíztűrő", originalFormat: "pdf", conversionStatus: "pending" });
+    const key = path.join("ebooks", "u1", "1700000000000_K_nyv__1_.pdf");
+    expect(await storageFiles()).toEqual([key]);
+    expect((await readFile(path.join(storageRoot, key))).equals(pdf)).toBe(true);
+    expect(parseEpubSpy).not.toHaveBeenCalled();
+    expect(bookCreate.mock.calls[0][0].data).toMatchObject({ fileSize: pdf.length, fileUrl: `ebooks/u1/1700000000000_K_nyv__1_.pdf` });
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:3000/api/books/book1/convert", expect.anything());
+    fetchMock.mockRestore();
+  });
+
+  it("accepts a file of exactly the size limit", async () => {
+    const pdf = new Uint8Array(MAX_UPLOAD_FILE_SIZE);
+    pdf.set(Buffer.from("%PDF"));
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null));
+
+    const res = await POST(fileRequest(pdf, "max.pdf"));
+
+    expect(res.status).toBe(201);
+    expect(bookCreate.mock.calls[0][0].data.fileSize).toBe(MAX_UPLOAD_FILE_SIZE);
+    fetchMock.mockRestore();
+  });
+
+  it("removes the partial temp file when the file limit is exceeded (413)", async () => {
+    const res = await POST(fileRequest(new Uint8Array(MAX_UPLOAD_FILE_SIZE + 1), "nagy.pdf"));
+
+    expect(res.status).toBe(413);
+    expect(await res.json()).toEqual({ error: "A fájl mérete meghaladja a 100MB limitet" });
+    expect(await storageFiles()).toEqual([]);
+    expect(bookCreate).not.toHaveBeenCalled();
+  });
+
+  it("removes the temp file when the content does not match the extension (400)", async () => {
+    const res = await POST(fileRequest("definitely not a pdf", "konyv.pdf"));
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "A fájl tartalma nem egyezik a kiterjesztéssel" });
+    expect(await storageFiles()).toEqual([]);
+  });
+
+  it("does not write an unsupported file to disk at all", async () => {
+    const res = await POST(fileRequest(new Uint8Array(MB), "virus.exe"));
+
+    expect(res.status).toBe(400);
+    expect(await storageFiles()).toEqual([]);
+  });
+
+  it("removes the temp file and answers 400 for a truncated multipart body", async () => {
+    const fd = new FormData();
+    fd.append("file", new File([new Uint8Array(512 * 1024).fill(0x25)], "konyv.pdf"));
+    const { bytes, contentType } = await serialize(fd);
+    const truncated = bytes.subarray(0, bytes.length - 100_000);
+
+    const res = await POST(
+      new NextRequest(URL_, { method: "POST", body: truncated, headers: { "content-type": contentType } })
+    );
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "Hibás feltöltési kérés" });
+    expect(await storageFiles()).toEqual([]);
+    expect(bookCreate).not.toHaveBeenCalled();
+  });
+
+  it("answers 400 for a body that is not multipart/form-data", async () => {
+    const res = await POST(
+      new NextRequest(URL_, { method: "POST", body: "{}", headers: { "content-type": "application/json" } })
+    );
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "Hibás feltöltési kérés" });
+    expect(await storageFiles()).toEqual([]);
+  });
+
+  it("answers 413 for too many fields or an oversized field and cleans up", async () => {
+    const many: Record<string, string> = {};
+    for (let i = 0; i < 250; i++) many[`f${i}`] = "x";
+    const r1 = await POST(fileRequest("%PDF-1.7", "a.pdf", many));
+    expect(r1.status).toBe(413);
+    expect(await r1.json()).toEqual({ error: "A kérés mérete meghaladja a 100MB limitet" });
+
+    const r2 = await POST(fileRequest("%PDF-1.7", "a.pdf", { description: "x".repeat(70 * 1024) }));
+    expect(r2.status).toBe(413);
+
+    expect(await storageFiles()).toEqual([]);
+    expect(bookCreate).not.toHaveBeenCalled();
+  });
+
+  it("uses only the first file part and keeps repeated topicIds", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null));
+    const fd = new FormData();
+    fd.append("topicIds", "t1");
+    fd.append("file", new File(["%PDF-first"], "first.pdf"));
+    fd.append("topicIds", "t2");
+    fd.append("file", new File(["%PDF-second"], "second.pdf"));
+
+    const res = await POST(new NextRequest(URL_, { method: "POST", body: fd }));
+
+    expect(res.status).toBe(201);
+    expect(await storageFiles()).toEqual([path.join("ebooks", "u1", "1700000000000_first.pdf")]);
+    expect(bookCreate.mock.calls[0][0].data.topics).toEqual({ create: [{ topicId: "t1" }, { topicId: "t2" }] });
+    fetchMock.mockRestore();
   });
 });

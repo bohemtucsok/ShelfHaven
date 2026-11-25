@@ -117,6 +117,25 @@ export async function saveFile(bucket: Bucket, key: string, body: Buffer | Uint8
   return toStorageRef(bucket, key);
 }
 
+/**
+ * Path for a temporary file inside the bucket directory. It sits on the same
+ * filesystem as the final file, so commitTempFile() can rename it atomically,
+ * and the .tmp suffix keeps it out of listFiles() (and so out of backups).
+ */
+export async function createTempPath(bucket: Bucket): Promise<string> {
+  const dir = path.join(getStorageRoot(), bucket);
+  await fs.mkdir(dir, { recursive: true });
+  return path.join(dir, `.upload-${randomUUID()}${TMP_SUFFIX}`);
+}
+
+/** Move a finished temporary file to its final key (atomic rename) and return its storage reference. */
+export async function commitTempFile(tmpPath: string, bucket: Bucket, key: string): Promise<string> {
+  const fullPath = resolveStoragePath(bucket, key);
+  await fs.mkdir(path.dirname(fullPath), { recursive: true });
+  await fs.rename(tmpPath, fullPath);
+  return toStorageRef(bucket, key);
+}
+
 /** Read a stored file into memory. Returns null if the reference is invalid or the file is missing. */
 export async function readStoredFile(
   ref: string | null | undefined
