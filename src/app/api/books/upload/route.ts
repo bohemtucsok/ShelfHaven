@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { promises as fs } from "node:fs";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { saveFile, sanitizeKeySegment } from "@/lib/storage";
+import {
+  saveFile,
+  sanitizeKeySegment,
+  createTempPath,
+  commitTempFile,
+  resolveStoragePath,
+} from "@/lib/storage";
 import { parseEpub } from "@/lib/ebook/epub-parser";
 import { downloadAndResizeCover, generateBlurHash } from "@/lib/ebook/cover-utils";
 import { validateCsrf } from "@/lib/csrf";
@@ -10,6 +17,13 @@ import { logSecurityEvent } from "@/lib/security-logger";
 import { createActivity } from "@/lib/activity";
 import { MAX_UPLOAD_FILE_SIZE, MULTIPART_OVERHEAD_ALLOWANCE } from "@/lib/upload-limits";
 import { declaredLengthExceeds, limitBodyStream } from "@/lib/request-body";
+import {
+  receiveMultipart,
+  MultipartFormatError,
+  MultipartLimitError,
+  type MultipartLimits,
+  type MultipartResult,
+} from "@/lib/multipart-upload";
 
 const MAX_BODY_SIZE = MAX_UPLOAD_FILE_SIZE + MULTIPART_OVERHEAD_ALLOWANCE;
 
@@ -18,6 +32,26 @@ function payloadTooLarge() {
     { error: "A kérés mérete meghaladja a 100MB limitet" },
     { status: 413 }
   );
+}
+
+function fileTooLarge() {
+  return NextResponse.json(
+    { error: "A fájl mérete meghaladja a 100MB limitet" },
+    { status: 413 }
+  );
+}
+
+/** Explicit busboy limits; the whole body is additionally capped at MAX_BODY_SIZE. */
+const UPLOAD_LIMITS: MultipartLimits = {
+  fileSize: MAX_UPLOAD_FILE_SIZE,
+  fields: 200, // title, author, description, coverUrl, categoryIds + repeated topicIds
+  fieldSize: MULTIPART_OVERHEAD_ALLOWANCE,
+  parts: 201,
+  headerPairs: 8,
+};
+
+function extensionOf(filename: string): string {
+  return filename.split(".").pop()?.toLowerCase() || "";
 }
 
 const ALLOWED_EXTENSIONS = ["epub", "pdf", "mobi", "fb2", "djvu", "azw3", "cbr", "cbz"];
@@ -84,53 +118,60 @@ export async function POST(request: NextRequest) {
     return payloadTooLarge();
   }
 
-  // ... and while reading (missing or forged Content-Length). The counting
-  // stream feeds formData() directly, so no extra copy of the body is kept.
+  // ... and while reading (missing or forged Content-Length). The file part is
+  // streamed into a temporary file in the storage directory; the body is never
+  // buffered as a whole.
   const limited = limitBodyStream(request, MAX_BODY_SIZE);
-  let formData: FormData;
-  try {
-    formData = await new Response(limited.body, {
-      headers: { "content-type": request.headers.get("content-type") ?? "" },
-    }).formData();
-  } catch (error) {
-    if (limited.exceeded()) return payloadTooLarge();
-    throw error; // malformed body: unchanged behaviour (unhandled, as before)
-  }
-  const file = formData.get("file") as File | null;
-  const title = formData.get("title") as string | null;
-  const author = formData.get("author") as string | null;
-  const description = formData.get("description") as string | null;
-  const externalCoverUrl = formData.get("coverUrl") as string | null;
-  const categoryIdsRaw = formData.get("categoryIds") as string | null;
-  let categoryIds: string[] = [];
-  if (categoryIdsRaw) {
-    try { categoryIds = JSON.parse(categoryIdsRaw); } catch {}
-  }
-  const topicIds = formData.getAll("topicIds") as string[];
-
-  if (!file) {
-    return NextResponse.json({ error: "Nincs fájl csatolva" }, { status: 400 });
-  }
-
-  if (file.size > MAX_UPLOAD_FILE_SIZE) {
-    return NextResponse.json(
-      { error: "A fájl mérete meghaladja a 100MB limitet" },
-      { status: 413 }
-    );
-  }
-
-  const extension = file.name.split(".").pop()?.toLowerCase() || "";
-  if (!ALLOWED_EXTENSIONS.includes(extension)) {
-    return NextResponse.json(
-      { error: `Nem támogatott formátum: ${extension}. Támogatott: ${ALLOWED_EXTENSIONS.join(", ")}` },
-      { status: 400 }
-    );
-  }
+  const tmpPath = await createTempPath("ebooks");
+  let committed = false;
 
   try {
-    const buffer = Buffer.from(await file.arrayBuffer());
+    let parsed: MultipartResult;
+    try {
+      parsed = await receiveMultipart(limited.body, {
+        contentType: request.headers.get("content-type") ?? "",
+        fileField: "file",
+        tmpPath,
+        acceptFile: (name) => ALLOWED_EXTENSIONS.includes(extensionOf(name)),
+        limits: UPLOAD_LIMITS,
+      });
+    } catch (error) {
+      if (limited.exceeded()) return payloadTooLarge();
+      if (error instanceof MultipartLimitError) {
+        return error.kind === "file" ? fileTooLarge() : payloadTooLarge();
+      }
+      if (error instanceof MultipartFormatError) {
+        return NextResponse.json({ error: "Hibás feltöltési kérés" }, { status: 400 });
+      }
+      throw error;
+    }
 
-    if (!validateFileContent(buffer, extension)) {
+    const field = (name: string) => parsed.fields.get(name)?.[0] ?? null;
+    const file = parsed.file;
+    const title = field("title");
+    const author = field("author");
+    const description = field("description");
+    const externalCoverUrl = field("coverUrl");
+    const categoryIdsRaw = field("categoryIds");
+    let categoryIds: string[] = [];
+    if (categoryIdsRaw) {
+      try { categoryIds = JSON.parse(categoryIdsRaw); } catch {}
+    }
+    const topicIds = parsed.fields.get("topicIds") ?? [];
+
+    if (!file) {
+      return NextResponse.json({ error: "Nincs fájl csatolva" }, { status: 400 });
+    }
+
+    const extension = extensionOf(file.filename);
+    if (!ALLOWED_EXTENSIONS.includes(extension) || !file.path) {
+      return NextResponse.json(
+        { error: `Nem támogatott formátum: ${extension}. Támogatott: ${ALLOWED_EXTENSIONS.join(", ")}` },
+        { status: 400 }
+      );
+    }
+
+    if (!validateFileContent(file.head, extension)) {
       return NextResponse.json(
         { error: "A fájl tartalma nem egyezik a kiterjesztéssel" },
         { status: 400 }
@@ -138,11 +179,12 @@ export async function POST(request: NextRequest) {
     }
 
     const timestamp = Date.now();
-    const safeFilename = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const safeFilename = file.filename.replace(/[^a-zA-Z0-9._-]/g, "_");
     const fileKey = `${session.user.id}/${timestamp}_${safeFilename}`;
 
-    // Store ebook file
-    const fileUrl = await saveFile("ebooks", fileKey, buffer);
+    // Store ebook file (atomic rename of the temporary file)
+    const fileUrl = await commitTempFile(tmpPath, "ebooks", fileKey);
+    committed = true;
 
     // Extract EPUB metadata and cover if applicable
     let epubTitle = title;
@@ -153,6 +195,8 @@ export async function POST(request: NextRequest) {
 
     if (extension === "epub") {
       try {
+        // JSZip needs the whole archive: read it back only for EPUBs.
+        const buffer = await fs.readFile(resolveStoragePath("ebooks", fileKey));
         const metadata = await parseEpub(buffer);
         if (!epubTitle && metadata.title) epubTitle = metadata.title;
         if (!epubAuthor && metadata.author) epubAuthor = metadata.author;
@@ -196,7 +240,7 @@ export async function POST(request: NextRequest) {
     // Create book record
     const book = await prisma.book.create({
       data: {
-        title: epubTitle || file.name.replace(/\.[^/.]+$/, ""),
+        title: epubTitle || file.filename.replace(/\.[^/.]+$/, ""),
         author: epubAuthor || null,
         description: epubDescription || null,
         fileUrl,
@@ -243,7 +287,7 @@ export async function POST(request: NextRequest) {
       coverUrl: book.coverUrl ? `/api/books/${book.id}/cover` : null,
     };
 
-    logSecurityEvent("UPLOAD_SUCCESS", { request, userId: session.user.id, details: file.name });
+    logSecurityEvent("UPLOAD_SUCCESS", { request, userId: session.user.id, details: file.filename });
 
     createActivity({
       userId: session.user.id,
@@ -258,5 +302,7 @@ export async function POST(request: NextRequest) {
       { error: "Hiba történt a feltöltés során" },
       { status: 500 }
     );
+  } finally {
+    if (!committed) await fs.rm(tmpPath, { force: true });
   }
 }
