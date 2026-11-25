@@ -184,6 +184,8 @@
     "searchRequiresInput": "Add meg a címet vagy a szerzőt a kereséshez",
     "noMatchesOnline": "Nem találtunk egyező könyvet online",
     "metadataSearchError": "Hiba a metaadat keresésnél",
+    "metadataSessionExpired": "A munkamenet lejárt, jelentkezz be újra a metaadatok kinyeréséhez",
+    "metadataFileTooLarge": "A fájl túl nagy (max. 100 MB), a metaadatok nem nyerhetők ki",
     "searchNetworkError": "Hálózati hiba a keresés során",
     "categoryOptional": "Kategória (opcionális)",
     "topicsOptional": "Témák (opcionális)",

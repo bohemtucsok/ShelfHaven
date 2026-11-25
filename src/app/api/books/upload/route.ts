@@ -8,9 +8,9 @@ import { validateCsrf } from "@/lib/csrf";
 import { checkRateLimit, UPLOAD_LIMIT } from "@/lib/rate-limit";
 import { logSecurityEvent } from "@/lib/security-logger";
 import { createActivity } from "@/lib/activity";
+import { MAX_UPLOAD_FILE_SIZE } from "@/lib/upload-limits";
 
 const ALLOWED_EXTENSIONS = ["epub", "pdf", "mobi", "fb2", "djvu", "azw3", "cbr", "cbz"];
-const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 
 const MAGIC_BYTES: Record<string, number[][]> = {
   epub: [[0x50, 0x4B, 0x03, 0x04]], // ZIP (EPUB is a ZIP)
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Nincs fájl csatolva" }, { status: 400 });
   }
 
-  if (file.size > MAX_FILE_SIZE) {
+  if (file.size > MAX_UPLOAD_FILE_SIZE) {
     return NextResponse.json(
       { error: "A fájl mérete meghaladja a 100MB limitet" },
       { status: 400 }

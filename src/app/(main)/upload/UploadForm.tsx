@@ -152,6 +152,10 @@ export default function UploadForm() {
           if (meta.author) setAuthor(meta.author);
           if (meta.description) setDescription(meta.description);
           if (meta.coverPreview) setCoverPreview(meta.coverPreview);
+        } else if (res.status === 401) {
+          toast.error(t("metadataSessionExpired"));
+        } else if (res.status === 413) {
+          toast.error(t("metadataFileTooLarge"));
         }
       } catch {
         // Silent fail - user can still enter manually
@@ -159,7 +163,7 @@ export default function UploadForm() {
         setExtractingMetadata(false);
       }
     }
-  }, []);
+  }, [t]);
 
   const handleMultipleFiles = useCallback((files: FileList) => {
     if (files.length === 1) {

@@ -184,6 +184,8 @@
     "searchRequiresInput": "Please provide a title or author for search",
     "noMatchesOnline": "No matching books found online",
     "metadataSearchError": "Error searching metadata",
+    "metadataSessionExpired": "Your session has expired, please sign in again to extract metadata",
+    "metadataFileTooLarge": "The file is too large (max. 100 MB), metadata cannot be extracted",
     "searchNetworkError": "Network error during search",
     "categoryOptional": "Category (optional)",
     "topicsOptional": "Topics (optional)",
