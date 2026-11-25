@@ -38,6 +38,23 @@ secret-scan:
     - if: '$CI_COMMIT_BRANCH == "master"'
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
 
+# Fails if mirrored content (tracked files incl. this one, pushed commit
+# messages) contains internal infrastructure data. Patterns: LEAK_PATTERNS
+# (protected File-type CI variable, never in the repo); missing -> fails.
+leak-check:
+  stage: security
+  image: alpine:3.20
+  variables:
+    GIT_DEPTH: "0"
+  before_script:
+    - apk add --no-cache git
+    - git config --global --add safe.directory "$CI_PROJECT_DIR"
+  script:
+    - sh scripts/ci/leak-check.sh
+  allow_failure: false
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+
 # ------------------ Test Stage ------------------
 
 npm-build-check:
@@ -122,6 +139,7 @@ github-mirror:
   needs:
     - npm-audit
     - secret-scan
+    - leak-check
     - npm-build-check
     - lint
     - unit-tests

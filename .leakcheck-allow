@@ -1,0 +1,11 @@
+# Intentional matches of the leak-check patterns: "path:LINE" or "path:FROM-TO".
+# Only paths and line numbers here - never the matched value itself.
+# Line numbers move when the file changes: a shifted entry fails the check
+# (safe direction) and has to be updated.
+
+# SSRF protection: private/loopback/link-local address and internal host checks
+src/lib/ebook/cover-utils.ts:13-64
+
+# Company name and logo link in the footer
+README.md:395
+README.hu.md:395
