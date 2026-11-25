@@ -132,6 +132,23 @@ export async function readStoredFile(
   }
 }
 
+/**
+ * Absolute path of a stored file, for consumers that read it lazily (e.g. fs.openAsBlob).
+ * Returns null if the reference is invalid or the file is missing.
+ */
+export async function storedFilePath(ref: string | null | undefined): Promise<string | null> {
+  const loc = parseStorageRef(ref);
+  if (!loc) return null;
+  const fullPath = resolveStoragePath(loc.bucket, loc.key);
+  try {
+    const stat = await fs.stat(fullPath);
+    return stat.isFile() ? fullPath : null;
+  } catch (err) {
+    if (isNotFound(err)) return null;
+    throw err;
+  }
+}
+
 /** Open a stored file as a web stream (for large downloads). Returns null if missing. */
 export async function openStoredFile(
   ref: string | null | undefined

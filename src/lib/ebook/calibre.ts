@@ -1,3 +1,5 @@
+import { openAsBlob } from "node:fs";
+
 const CALIBRE_SERVICE_URL =
   process.env.CALIBRE_SERVICE_URL || "http://calibre:8080";
 
@@ -23,18 +25,24 @@ function sanitizeFilename(filename: string): string {
 
 /**
  * Convert an ebook file to EPUB using the Calibre conversion service.
+ *
+ * The source is sent as a file-backed Blob (fs.openAsBlob), so the request body
+ * is streamed from disk instead of being copied into memory first.
  */
 export async function convertToEpub(
-  fileBuffer: Buffer,
+  filePath: string,
   filename: string
 ): Promise<ConversionResult> {
   const safeFilename = sanitizeFilename(filename);
+
+  let file: Blob;
+  try {
+    file = await openAsBlob(filePath);
+  } catch {
+    return { success: false, error: "Failed to read file from storage" };
+  }
   const formData = new FormData();
-  const arrayBuf = fileBuffer.buffer.slice(
-    fileBuffer.byteOffset,
-    fileBuffer.byteOffset + fileBuffer.byteLength
-  ) as ArrayBuffer;
-  formData.append("file", new Blob([arrayBuf]), safeFilename);
+  formData.append("file", file, safeFilename);
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 300_000); // 5 min

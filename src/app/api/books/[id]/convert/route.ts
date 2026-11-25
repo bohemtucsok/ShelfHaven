@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { readStoredFile, saveFile, parseStorageRef } from "@/lib/storage";
+import { storedFilePath, saveFile, parseStorageRef } from "@/lib/storage";
 import { convertToEpub } from "@/lib/ebook/calibre";
 import { createNotification } from "@/lib/notifications";
 import { validateCsrf } from "@/lib/csrf";
@@ -93,17 +93,16 @@ export async function POST(
   try {
     // Read original file from storage (use originalFileUrl if re-converting)
     const sourceRef = book.originalFileUrl || book.fileUrl;
-    const source = await readStoredFile(sourceRef);
-    if (!source) {
+    const sourcePath = await storedFilePath(sourceRef);
+    if (!sourcePath) {
       throw new Error("Failed to read file from storage");
     }
-    const fileBuffer = source.data;
     const key = parseStorageRef(sourceRef)?.key || "";
 
     const filename = key.split("/").pop() || `input.${book.originalFormat}`;
 
     // Call Calibre conversion service
-    const result = await convertToEpub(fileBuffer, filename);
+    const result = await convertToEpub(sourcePath, filename);
 
     if (!result.success || !result.data) {
       await prisma.book.update({
