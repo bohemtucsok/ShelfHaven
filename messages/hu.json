@@ -500,6 +500,8 @@
     "restoring": "Visszaállítás folyamatban...",
     "restoreSuccess": "Visszaállítás sikeresen befejeződött!",
     "restoreFailed": "Nem sikerült a visszaállítás",
+    "restoreTooLarge": "A mentésfájl túl nagy a visszaállításhoz",
+    "restoreTooLargeWithLimit": "A mentésfájl túl nagy a visszaállításhoz (legfeljebb {max} MB)",
     "restoreInvalidFile": "Érvénytelen mentés fájl.",
     "cancel": "Mégse",
     "totalUsers": "Összes felhasználó",

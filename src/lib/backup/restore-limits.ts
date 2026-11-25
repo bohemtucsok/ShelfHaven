@@ -60,3 +60,27 @@ export function getRestoreZipLimits(
   }
   return limits;
 }
+
+/**
+ * Maximum size of the uploaded backup ZIP itself (the request body of
+ * POST /api/admin/backup/restore). Not to be confused with
+ * RESTORE_ZIP_MAX_TOTAL_MB, which limits the size of the ZIP's contents
+ * after decompression.
+ *
+ * The route holds the upload in memory: parsing a multipart body costs about
+ * 4x its size (measured: ~405 MB peak RSS for a 100 MB upload), and the app
+ * container has 512 MB. 100 MB is therefore the practical ceiling there, and
+ * well above the backup size of a typical library.
+ * Raise RESTORE_UPLOAD_MAX_MB together with the container memory limit.
+ */
+export const RESTORE_UPLOAD_MAX_MB_DEFAULT = 100;
+
+export function getRestoreUploadMaxBytes(env: Record<string, string | undefined> = process.env): number {
+  const raw = env.RESTORE_UPLOAD_MAX_MB;
+  if (raw !== undefined && raw !== "") {
+    const value = Number(raw);
+    if (Number.isFinite(value) && value > 0) return Math.floor(value * MB);
+    console.warn(`[restore] Ignoring invalid RESTORE_UPLOAD_MAX_MB=${raw}, using default`);
+  }
+  return RESTORE_UPLOAD_MAX_MB_DEFAULT * MB;
+}
