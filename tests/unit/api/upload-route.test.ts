@@ -160,6 +160,18 @@ describe("POST /api/books/upload body size limit", () => {
     expect(bookCreate).not.toHaveBeenCalled();
   });
 
+  it("returns 413 (not 400) for a file just above 100 MB that fits the body allowance", async () => {
+    const fd = new FormData();
+    fd.append("file", new File([new Uint8Array(MAX_UPLOAD_FILE_SIZE + 1)], "nagy.epub"));
+
+    const res = await POST(new NextRequest(URL_, { method: "POST", body: fd }));
+
+    expect(res.status).toBe(413);
+    expect(await res.json()).toEqual({ error: "A fájl mérete meghaladja a 100MB limitet" });
+    expect(saveFileMock).not.toHaveBeenCalled();
+    expect(bookCreate).not.toHaveBeenCalled();
+  });
+
   it("uploads a valid small EPUB with the same response and side effects as before", async () => {
     const res = await POST(await multipartRequest({ categoryIds: JSON.stringify(["c1"]), topicIds: "t1" }));
 

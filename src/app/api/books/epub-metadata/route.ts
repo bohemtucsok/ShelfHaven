@@ -4,7 +4,7 @@ import { validateCsrf } from "@/lib/csrf";
 import { checkRateLimit, API_LIMIT } from "@/lib/rate-limit";
 import { auth } from "@/lib/auth";
 import { MAX_UPLOAD_FILE_SIZE, MULTIPART_OVERHEAD_ALLOWANCE } from "@/lib/upload-limits";
-import { readBodyLimited, declaredLengthExceeds } from "@/lib/request-body";
+import { limitBodyStream, declaredLengthExceeds } from "@/lib/request-body";
 
 const MAX_BODY_SIZE = MAX_UPLOAD_FILE_SIZE + MULTIPART_OVERHEAD_ALLOWANCE;
 
@@ -33,13 +33,18 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // ... and while reading it (missing or forged Content-Length)
-    const body = await readBodyLimited(request, MAX_BODY_SIZE);
-    if (!body) return payloadTooLarge();
-
-    const formData = await new Response(body, {
-      headers: { "content-type": request.headers.get("content-type") ?? "" },
-    }).formData();
+    // ... and while reading it (missing or forged Content-Length). The counting
+    // stream feeds formData() directly, so no extra copy of the body is kept.
+    const limited = limitBodyStream(request, MAX_BODY_SIZE);
+    let formData: FormData;
+    try {
+      formData = await new Response(limited.body, {
+        headers: { "content-type": request.headers.get("content-type") ?? "" },
+      }).formData();
+    } catch (error) {
+      if (limited.exceeded()) return payloadTooLarge();
+      throw error; // malformed body: handled by the catch below (500), as before
+    }
     const file = formData.get("file") as File | null;
 
     if (!file) {
