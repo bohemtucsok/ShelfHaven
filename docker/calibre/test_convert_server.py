@@ -29,7 +29,8 @@ def pid_alive(pid: int) -> bool:
         with open(f"/proc/{pid}/stat") as f:
             state = f.read().rsplit(")", 1)[1].split()[0]
         return state != "Z"
-    except FileNotFoundError:
+    except (FileNotFoundError, ProcessLookupError):
+        # The process can vanish between open() and read() of its stat file.
         return False
 
 
