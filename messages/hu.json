@@ -186,6 +186,7 @@
     "metadataSearchError": "Hiba a metaadat keresésnél",
     "metadataSessionExpired": "A munkamenet lejárt, jelentkezz be újra a metaadatok kinyeréséhez",
     "metadataFileTooLarge": "A fájl túl nagy (max. 100 MB), a metaadatok nem nyerhetők ki",
+    "uploadFileTooLarge": "A fájl túl nagy, a feltöltés legfeljebb 100 MB lehet",
     "searchNetworkError": "Hálózati hiba a keresés során",
     "categoryOptional": "Kategória (opcionális)",
     "topicsOptional": "Témák (opcionális)",

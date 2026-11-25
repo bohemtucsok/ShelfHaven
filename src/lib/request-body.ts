@@ -42,3 +42,33 @@ export function declaredLengthExceeds(request: Request, maxBytes: number): boole
   const length = Number(raw);
   return Number.isFinite(length) && length > maxBytes;
 }
+
+/**
+ * Wrap the request body in a byte-counting stream that errors as soon as more
+ * than `maxBytes` pass through (the source stream is cancelled). Unlike
+ * readBodyLimited() nothing is buffered here, so the body can be handed
+ * straight to `new Response(body).formData()` without an extra copy.
+ * Check `exceeded()` when parsing fails to tell "too large" apart from a
+ * malformed body.
+ */
+export function limitBodyStream(
+  request: Request,
+  maxBytes: number
+): { body: ReadableStream<Uint8Array> | null; exceeded: () => boolean } {
+  let tooLarge = false;
+  if (!request.body) return { body: null, exceeded: () => false };
+
+  let total = 0;
+  const counter = new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      total += chunk.byteLength;
+      if (total > maxBytes) {
+        tooLarge = true;
+        controller.error(new Error("Request body too large"));
+        return;
+      }
+      controller.enqueue(chunk);
+    },
+  });
+  return { body: request.body.pipeThrough(counter), exceeded: () => tooLarge };
+}

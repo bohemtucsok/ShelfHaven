@@ -8,7 +8,17 @@ import { validateCsrf } from "@/lib/csrf";
 import { checkRateLimit, UPLOAD_LIMIT } from "@/lib/rate-limit";
 import { logSecurityEvent } from "@/lib/security-logger";
 import { createActivity } from "@/lib/activity";
-import { MAX_UPLOAD_FILE_SIZE } from "@/lib/upload-limits";
+import { MAX_UPLOAD_FILE_SIZE, MULTIPART_OVERHEAD_ALLOWANCE } from "@/lib/upload-limits";
+import { declaredLengthExceeds, limitBodyStream } from "@/lib/request-body";
+
+const MAX_BODY_SIZE = MAX_UPLOAD_FILE_SIZE + MULTIPART_OVERHEAD_ALLOWANCE;
+
+function payloadTooLarge() {
+  return NextResponse.json(
+    { error: "A kérés mérete meghaladja a 100MB limitet" },
+    { status: 413 }
+  );
+}
 
 const ALLOWED_EXTENSIONS = ["epub", "pdf", "mobi", "fb2", "djvu", "azw3", "cbr", "cbz"];
 
@@ -69,7 +79,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const formData = await request.formData();
+  // Body size limit before reading (declared length) ...
+  if (declaredLengthExceeds(request, MAX_BODY_SIZE)) {
+    return payloadTooLarge();
+  }
+
+  // ... and while reading (missing or forged Content-Length). The counting
+  // stream feeds formData() directly, so no extra copy of the body is kept.
+  const limited = limitBodyStream(request, MAX_BODY_SIZE);
+  let formData: FormData;
+  try {
+    formData = await new Response(limited.body, {
+      headers: { "content-type": request.headers.get("content-type") ?? "" },
+    }).formData();
+  } catch (error) {
+    if (limited.exceeded()) return payloadTooLarge();
+    throw error; // malformed body: unchanged behaviour (unhandled, as before)
+  }
   const file = formData.get("file") as File | null;
   const title = formData.get("title") as string | null;
   const author = formData.get("author") as string | null;

@@ -256,6 +256,9 @@ export default function UploadForm() {
 
       clearInterval(progressInterval);
 
+      if (res.status === 413) {
+        throw new Error(t("uploadFileTooLarge"));
+      }
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || t("uploadError"));
@@ -361,7 +364,13 @@ export default function UploadForm() {
           body: formData,
         });
 
-        if (!res.ok) {
+        if (res.status === 413) {
+          const message = t("uploadFileTooLarge");
+          toast.error(`${item.file.name}: ${message}`);
+          setBulkFiles((prev) =>
+            prev.map((f, idx) => (idx === i ? { ...f, status: "error", error: message } : f))
+          );
+        } else if (!res.ok) {
           const data = await res.json().catch(() => ({ error: "Ismeretlen hiba" }));
           setBulkFiles((prev) =>
             prev.map((f, idx) =>
