@@ -500,6 +500,8 @@
     "restoring": "Restoring...",
     "restoreSuccess": "Restore completed successfully!",
     "restoreFailed": "Restore failed",
+    "restoreTooLarge": "The backup file is too large to restore",
+    "restoreTooLargeWithLimit": "The backup file is too large to restore (max. {max} MB)",
     "restoreInvalidFile": "Invalid backup file.",
     "cancel": "Cancel",
     "totalUsers": "Total users",

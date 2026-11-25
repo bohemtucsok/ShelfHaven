@@ -139,6 +139,17 @@ export default function BackupPanel() {
         body: formData,
       });
 
+      if (res.status === 413) {
+        // May come from a reverse proxy as HTML, so the JSON part is optional
+        const data = await res.json().catch(() => ({}));
+        toast.error(
+          typeof data.maxMb === "number"
+            ? t("restoreTooLargeWithLimit", { max: data.maxMb })
+            : t("restoreTooLarge")
+        );
+        setRestoring(false);
+        return;
+      }
       if (!res.ok) {
         const data = await res.json();
         toast.error(data.error || t("restoreFailed"));
