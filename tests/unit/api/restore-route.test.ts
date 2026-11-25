@@ -1,6 +1,9 @@
 // @vitest-environment node
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { NextRequest, NextResponse } from "next/server";
+import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
 const authMock = vi.fn();
 const rateLimitMock = vi.fn();
@@ -58,7 +61,13 @@ function backupRequest(name = "backup.zip", mode = "wipe", headers: Record<strin
   return new NextRequest(URL_, { method: "POST", body: fd, headers });
 }
 
-beforeEach(() => {
+let testTmp: string;
+const originalTmpdir = process.env.TMPDIR;
+
+beforeEach(async () => {
+  // os.tmpdir() follows TMPDIR, so the route's temp directories land here.
+  testTmp = await mkdtemp(path.join(tmpdir(), "shelfhaven-restore-test-"));
+  process.env.TMPDIR = testTmp;
   authMock.mockReset().mockResolvedValue({ user: { id: "a1", role: "ADMIN" } });
   rateLimitMock.mockReset().mockReturnValue(null);
   // Like the real service, finish the operation so the next request is not a 409
@@ -69,8 +78,11 @@ beforeEach(() => {
   delete process.env.RESTORE_UPLOAD_MAX_MB;
 });
 
-afterEach(() => {
+afterEach(async () => {
   delete process.env.RESTORE_UPLOAD_MAX_MB;
+  if (originalTmpdir === undefined) delete process.env.TMPDIR;
+  else process.env.TMPDIR = originalTmpdir;
+  await rm(testTmp, { recursive: true, force: true });
   vi.restoreAllMocks();
 });
 
@@ -193,6 +205,80 @@ describe("POST /api/admin/backup/restore body size limit", () => {
     });
     expect(authMock).toHaveBeenCalled();
     expect(restoreMock).not.toHaveBeenCalled();
+  });
+});
+
+function zipRequest(content: Uint8Array<ArrayBuffer>, name = "backup.zip", mode = "merge") {
+  const fd = new FormData();
+  fd.append("mode", mode);
+  fd.append("file", new File([content], name));
+  return new NextRequest(URL_, { method: "POST", body: fd });
+}
+
+describe("POST /api/admin/backup/restore streaming (busboy)", () => {
+  it("hands the exact ZIP bytes to restoreBackup and removes the temp file", async () => {
+    const zip = new Uint8Array(3 * MB + 5);
+    for (let i = 0; i < zip.length; i++) zip[i] = (i * 31) & 0xff;
+
+    const res = await POST(zipRequest(zip));
+
+    expect(res.status).toBe(200);
+    const [, buffer, mode] = restoreMock.mock.calls[0];
+    expect(buffer).toBeInstanceOf(ArrayBuffer);
+    expect(Buffer.from(buffer as ArrayBuffer).equals(Buffer.from(zip))).toBe(true);
+    expect(mode).toBe("merge");
+    expect(await readdir(testTmp)).toEqual([]);
+  });
+
+  it("accepts a ZIP of exactly RESTORE_UPLOAD_MAX_MB", async () => {
+    process.env.RESTORE_UPLOAD_MAX_MB = "1";
+
+    const res = await POST(zipRequest(new Uint8Array(MB)));
+
+    expect(res.status).toBe(200);
+    expect((restoreMock.mock.calls[0][1] as ArrayBuffer).byteLength).toBe(MB);
+  });
+
+  it("answers 413 for a ZIP one byte above the limit and removes the partial file", async () => {
+    process.env.RESTORE_UPLOAD_MAX_MB = "1";
+
+    const res = await POST(zipRequest(new Uint8Array(MB + 1)));
+
+    expect(res.status).toBe(413);
+    expect(await res.json()).toEqual({
+      error: "Backup file too large (max 1 MB, RESTORE_UPLOAD_MAX_MB)",
+      maxMb: 1,
+    });
+    expect(restoreMock).not.toHaveBeenCalled();
+    expect(await readdir(testTmp)).toEqual([]);
+  });
+
+  it("answers 400 for a truncated multipart body and removes the partial file", async () => {
+    const fd = new FormData();
+    fd.append("file", new File([new Uint8Array(512 * 1024)], "backup.zip"));
+    const req = new Request(URL_, { method: "POST", body: fd });
+    const bytes = new Uint8Array(await req.arrayBuffer());
+
+    const res = await POST(
+      new NextRequest(URL_, {
+        method: "POST",
+        body: bytes.subarray(0, bytes.length - 100_000),
+        headers: { "content-type": req.headers.get("content-type")! },
+      })
+    );
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "Invalid multipart request" });
+    expect(restoreMock).not.toHaveBeenCalled();
+    expect(await readdir(testTmp)).toEqual([]);
+  });
+
+  it("does not write a non-ZIP upload to disk", async () => {
+    const res = await POST(zipRequest(new Uint8Array(MB), "backup.tar"));
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "Invalid file type, expected .zip" });
+    expect(await readdir(testTmp)).toEqual([]);
   });
 });
 

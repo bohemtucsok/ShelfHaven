@@ -67,11 +67,13 @@ export function getRestoreZipLimits(
  * RESTORE_ZIP_MAX_TOTAL_MB, which limits the size of the ZIP's contents
  * after decompression.
  *
- * The route holds the upload in memory: parsing a multipart body costs about
- * 4x its size (measured: ~405 MB peak RSS for a 100 MB upload), and the app
- * container has 512 MB. 100 MB is therefore the practical ceiling there, and
- * well above the backup size of a typical library.
- * Raise RESTORE_UPLOAD_MAX_MB together with the container memory limit.
+ * The route streams the upload into a temporary file and reads it back once,
+ * because JSZip needs the whole archive in memory: the peak is about 1.4x the
+ * ZIP size (measured: ~140 MB peak RSS for a 100 MB backup; it was ~4x while
+ * the multipart body was buffered). restoreBackup() itself adds JSZip's own
+ * working memory on top of that, and the app container has 512 MB, so keep
+ * the default conservative and raise RESTORE_UPLOAD_MAX_MB together with the
+ * container memory limit.
  */
 export const RESTORE_UPLOAD_MAX_MB_DEFAULT = 100;
 
