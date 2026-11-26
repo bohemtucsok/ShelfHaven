@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
+import { publicConversionError } from "@/lib/ebook/conversion-error";
 
 export async function GET(request: NextRequest) {
   const session = await auth();
@@ -120,6 +121,7 @@ export async function GET(request: NextRequest) {
     fileUrl: `/api/books/${book.id}/download`,
     originalFileUrl: book.originalFileUrl ? `/api/books/${book.id}/download?variant=original` : null,
     coverUrl: book.coverUrl ? `/api/books/${book.id}/cover` : null,
+    conversionError: publicConversionError(book.conversionError),
     isOwned: book.userId === session.user.id,
     isSaved: book.userId !== session.user.id,
   }));

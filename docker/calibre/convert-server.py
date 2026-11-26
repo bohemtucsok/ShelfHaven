@@ -175,6 +175,17 @@ def run_conversion(cmd: list, timeout: int) -> subprocess.CompletedProcess:
     return subprocess.CompletedProcess(cmd, proc.returncode, stdout, stderr)
 
 
+_PATH_RE = re.compile(r"(?:[A-Za-z]:)?(?:[\\/][\w.@+~-]+){2,}[\\/]?")
+
+
+def summarize_error(text: str, limit: int = 160) -> str:
+    """Last non-empty line of an error output, without filesystem paths."""
+    lines = [line.strip() for line in (text or "").splitlines() if line.strip()]
+    last = lines[-1] if lines else "Unknown error"
+    last = " ".join(_PATH_RE.sub("<path>", last).split())
+    return last if len(last) <= limit else last[: limit - 1] + "\u2026"
+
+
 def log(msg: str):
     """Print with immediate flush for Docker log visibility."""
     print(f"[calibre] {msg}", flush=True)
@@ -659,30 +670,30 @@ class ConvertHandler(BaseHTTPRequestHandler):
 
         content_type = self.headers.get("Content-Type", "")
         if "multipart/form-data" not in content_type:
-            self._error(400, "Content-Type must be multipart/form-data")
+            self._error(400, "Content-Type must be multipart/form-data", "unknown")
             return
 
         boundary = content_type.split("boundary=")[-1].strip()
         content_length = int(self.headers.get("Content-Length", 0))
 
         if content_length == 0:
-            self._error(400, "Empty request body")
+            self._error(400, "Empty request body", "unsupported_content")
             return
 
         if content_length > 200 * 1024 * 1024:
-            self._error(413, "File too large (max 200MB)")
+            self._error(413, "File too large (max 200MB)", "too_large")
             return
 
         body = self.rfile.read(content_length)
 
         file_data, filename = self._parse_multipart(body, boundary)
         if file_data is None:
-            self._error(400, "No file found in request")
+            self._error(400, "No file found in request", "unsupported_content")
             return
 
         acquired = SEMAPHORE.acquire(timeout=60)
         if not acquired:
-            self._error(503, "Server busy, too many concurrent conversions")
+            self._error(503, "Server busy, too many concurrent conversions", "busy")
             return
 
         try:
@@ -694,7 +705,7 @@ class ConvertHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(result["data"])
             else:
-                self._error(500, result["error"])
+                self._error(500, result["error"], result.get("code", "unknown"))
         finally:
             SEMAPHORE.release()
 
@@ -733,11 +744,12 @@ class ConvertHandler(BaseHTTPRequestHandler):
 
             if result.returncode != 0:
                 error_msg = result.stderr.strip() or result.stdout.strip() or "Unknown error"
+                # Full output (traceback) stays in the log; the client only gets a summary.
                 log(f"Conversion failed: {error_msg}")
-                return {"success": False, "error": error_msg}
+                return {"success": False, "error": summarize_error(error_msg), "code": "unsupported_content"}
 
             if not os.path.exists(output_path):
-                return {"success": False, "error": "Output file not created"}
+                return {"success": False, "error": "Output file not created", "code": "unsupported_content"}
 
             with open(output_path, "rb") as f:
                 epub_data = f.read()
@@ -753,10 +765,10 @@ class ConvertHandler(BaseHTTPRequestHandler):
             return {"success": True, "data": epub_data}
 
         except subprocess.TimeoutExpired:
-            return {"success": False, "error": "Conversion timed out (5 min limit)"}
+            return {"success": False, "error": "Conversion timed out (5 min limit)", "code": "timeout"}
         except Exception as e:
             log(f"Conversion error: {e}")
-            return {"success": False, "error": str(e)}
+            return {"success": False, "error": summarize_error(str(e)), "code": "unknown"}
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
 
@@ -792,11 +804,11 @@ class ConvertHandler(BaseHTTPRequestHandler):
 
         return None, None
 
-    def _error(self, code: int, message: str):
+    def _error(self, code: int, message: str, error_code: str = "unknown"):
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
         self.end_headers()
-        self.wfile.write(json.dumps({"error": message}).encode())
+        self.wfile.write(json.dumps({"error": message, "code": error_code}).encode())
 
 
 if __name__ == "__main__":

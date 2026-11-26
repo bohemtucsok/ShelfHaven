@@ -1,4 +1,9 @@
 import { openAsBlob } from "node:fs";
+import {
+  classifyServiceStatus,
+  isConversionErrorCode,
+  type ConversionErrorCode,
+} from "./conversion-error";
 
 const CALIBRE_SERVICE_URL =
   process.env.CALIBRE_SERVICE_URL || "http://calibre:8080";
@@ -6,6 +11,9 @@ const CALIBRE_SERVICE_URL =
 export interface ConversionResult {
   success: boolean;
   data?: Buffer;
+  /** Short, user-safe classification of the failure. */
+  code?: ConversionErrorCode;
+  /** Raw detail (may contain a traceback): server log only, never shown to users. */
   error?: string;
 }
 
@@ -39,7 +47,7 @@ export async function convertToEpub(
   try {
     file = await openAsBlob(filePath);
   } catch {
-    return { success: false, error: "Failed to read file from storage" };
+    return { success: false, code: "unknown", error: "Failed to read file from storage" };
   }
   const formData = new FormData();
   formData.append("file", file, safeFilename);
@@ -56,21 +64,27 @@ export async function convertToEpub(
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
-      return {
-        success: false,
-        error: errorData?.error || `Conversion failed (${response.status})`,
-      };
+      const detail =
+        typeof errorData?.error === "string" && errorData.error
+          ? errorData.error
+          : `Conversion failed (${response.status})`;
+      const code = isConversionErrorCode(errorData?.code)
+        ? errorData.code
+        : classifyServiceStatus(response.status, detail);
+      return { success: false, code, error: detail };
     }
 
     const arrayBuffer = await response.arrayBuffer();
     return { success: true, data: Buffer.from(arrayBuffer) };
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") {
-      return { success: false, error: "Konverzió időtúllépés (5 perc)" };
+      return { success: false, code: "timeout", error: "Conversion timed out (5 min limit)" };
     }
+    // Service unreachable (connection refused, DNS, reset): ask the user to retry later.
     return {
       success: false,
-      error: err instanceof Error ? err.message : "Ismeretlen konverziós hiba",
+      code: "busy",
+      error: err instanceof Error ? err.message : "Unknown conversion error",
     };
   } finally {
     clearTimeout(timeout);

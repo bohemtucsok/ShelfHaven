@@ -3,6 +3,12 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { storedFilePath, saveFile, parseStorageRef } from "@/lib/storage";
 import { convertToEpub } from "@/lib/ebook/calibre";
+import {
+  conversionFailureNotificationText,
+  publicConversionError,
+  storedConversionError,
+  type ConversionErrorCode,
+} from "@/lib/ebook/conversion-error";
 import { createNotification } from "@/lib/notifications";
 import { validateCsrf } from "@/lib/csrf";
 import { checkRateLimit, API_LIMIT } from "@/lib/rate-limit";
@@ -32,7 +38,8 @@ export async function GET(
 
   return NextResponse.json({
     conversionStatus: book.conversionStatus,
-    conversionError: book.conversionError,
+    // Only the short code goes out; the stored summary stays server-side.
+    conversionError: publicConversionError(book.conversionError),
   });
 }
 
@@ -105,22 +112,10 @@ export async function POST(
     const result = await convertToEpub(sourcePath, filename);
 
     if (!result.success || !result.data) {
-      await prisma.book.update({
-        where: { id: bookId },
-        data: {
-          conversionStatus: "failed",
-          conversionError: result.error || "Ismeretlen hiba",
-        },
-      });
-
-      createNotification({
-        userId: book.userId,
-        type: "conversion",
-        message: `A(z) "${book.title}" könyv EPUB konverziója sikertelen: ${result.error}`,
-        bookId,
-      }).catch(() => {});
-
-      return NextResponse.json({ error: result.error }, { status: 500 });
+      const code = result.code ?? "unknown";
+      // Full detail (possibly a Calibre traceback) only in the server log.
+      console.error(`[convert] book ${bookId} failed (${code}):`, result.error ?? "no detail");
+      return await failConversion(bookId, book.userId, book.title, code, result.error);
     }
 
     // Store converted EPUB
@@ -154,23 +149,33 @@ export async function POST(
       fileUrl: `/api/books/${bookId}/download`,
     });
   } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : "Ismeretlen hiba";
-
-    await prisma.book.update({
-      where: { id: bookId },
-      data: {
-        conversionStatus: "failed",
-        conversionError: errorMsg,
-      },
-    });
-
-    createNotification({
-      userId: book.userId,
-      type: "conversion",
-      message: `A(z) "${book.title}" könyv EPUB konverziója sikertelen`,
-      bookId,
-    }).catch(() => {});
-
-    return NextResponse.json({ error: errorMsg }, { status: 500 });
+    const detail = err instanceof Error ? err.message : String(err);
+    console.error(`[convert] book ${bookId} failed (unknown):`, err);
+    return await failConversion(bookId, book.userId, book.title, "unknown", detail);
   }
+}
+
+async function failConversion(
+  bookId: string,
+  userId: string,
+  title: string,
+  code: ConversionErrorCode,
+  detail: string | undefined
+) {
+  await prisma.book.update({
+    where: { id: bookId },
+    data: {
+      conversionStatus: "failed",
+      conversionError: storedConversionError(code, detail),
+    },
+  });
+
+  createNotification({
+    userId,
+    type: "conversion",
+    message: `A(z) "${title}" könyv EPUB konverziója sikertelen: ${conversionFailureNotificationText(code)}.`,
+    bookId,
+  }).catch(() => {});
+
+  return NextResponse.json({ error: code, code }, { status: 500 });
 }

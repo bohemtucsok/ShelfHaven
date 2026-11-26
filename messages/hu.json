@@ -233,6 +233,13 @@
     "conversionPending": "Konverzió várakozik...",
     "conversionInProgress": "EPUB konverzió folyamatban...",
     "conversionFailed": "Konverzió sikertelen",
+    "conversionError": {
+      "unsupported_content": "Ezt a fájlt nem sikerült EPUB-bá alakítani. Az eredeti fájl továbbra is letölthető.",
+      "timeout": "A konverzió túl sokáig tartott, ezért leállt. Próbáld újra később.",
+      "too_large": "A fájl túl nagy a konverzióhoz.",
+      "busy": "A konvertáló szolgáltatás most foglalt. Próbáld újra néhány perc múlva.",
+      "unknown": "A konverzió ismeretlen hiba miatt nem sikerült. Az eredeti fájl továbbra is letölthető."
+    },
     "reconvert": "Újrakonvertálás",
     "download": "Letöltés",
     "ratings": "Értékelések",

@@ -233,6 +233,13 @@
     "conversionPending": "Conversion pending...",
     "conversionInProgress": "EPUB conversion in progress...",
     "conversionFailed": "Conversion failed",
+    "conversionError": {
+      "unsupported_content": "This file could not be converted to EPUB. The original file can still be downloaded.",
+      "timeout": "The conversion took too long and was stopped. Please try again later.",
+      "too_large": "The file is too large to convert.",
+      "busy": "The conversion service is busy right now. Please try again in a few minutes.",
+      "unknown": "The conversion failed due to an unknown error. The original file can still be downloaded."
+    },
     "reconvert": "Re-convert",
     "download": "Download",
     "ratings": "Ratings",

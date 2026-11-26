@@ -7,6 +7,7 @@ import { validateCsrf } from "@/lib/csrf";
 import { checkRateLimit, API_LIMIT } from "@/lib/rate-limit";
 import { z } from "zod";
 import { logSecurityEvent } from "@/lib/security-logger";
+import { publicConversionError } from "@/lib/ebook/conversion-error";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -51,6 +52,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     fileUrl: `/api/books/${id}/download`,
     originalFileUrl: book.originalFileUrl ? `/api/books/${id}/download?variant=original` : null,
     coverUrl: book.coverUrl ? `/api/books/${id}/cover` : null,
+    conversionError: publicConversionError(book.conversionError),
     avgRating: Math.round(avgRating * 10) / 10,
     totalLikes: book._count.likes,
     isOwner: false,

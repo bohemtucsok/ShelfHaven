@@ -198,5 +198,28 @@ class PostProcessZipLimitTest(unittest.TestCase):
             cs.open_limited_zip(make_epub({"ch1.xhtml": CHAPTER}))
 
 
+SYNTHETIC_TRACEBACK = """Traceback (most recent call last):
+  File "/opt/app/bin/tool", line 10, in <module>
+    main()
+  File "/opt/app/lib/pkg/reflow.py", line 42, in find_parts
+    return items[0]
+IndexError: list index out of range
+"""
+
+
+class SummarizeErrorTest(unittest.TestCase):
+    def test_keeps_only_the_last_line(self):
+        self.assertEqual(cs.summarize_error(SYNTHETIC_TRACEBACK), "IndexError: list index out of range")
+
+    def test_strips_paths_and_truncates(self):
+        out = cs.summarize_error("OSError: cannot open /tmp/abc/input.pdf " + "x" * 300)
+        self.assertNotIn("/tmp/abc", out)
+        self.assertIn("<path>", out)
+        self.assertLessEqual(len(out), 160)
+
+    def test_empty_input(self):
+        self.assertEqual(cs.summarize_error(""), "Unknown error")
+
+
 if __name__ == "__main__":
     unittest.main()
