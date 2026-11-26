@@ -14,6 +14,7 @@ import RecommendationSection from "@/components/bookshelf/RecommendationSection"
 import SaveToLibraryButton from "@/components/bookshelf/SaveToLibraryButton";
 import CommentSection from "@/components/social/CommentSection";
 import { useOfflineBooks } from "@/hooks/useOfflineBooks";
+import { CONVERSION_ERROR_CODES, type ConversionErrorCode } from "@/lib/ebook/conversion-error";
 
 interface Book {
   id: string;
@@ -486,8 +487,14 @@ export default function BookDetail({ bookId, initialBook }: BookDetailProps) {
         setBook((prev) => prev ? { ...prev, conversionStatus: "converting" } : prev);
         toast.info(t("reconvert"));
       } else {
-        const data = await res.json();
-        toast.error(data.error || t("conversionFailed"));
+        const data = await res.json().catch(() => null);
+        // Never show the server's raw text: only a known code maps to a message.
+        const code = data?.code;
+        toast.error(
+          typeof code === "string" && CONVERSION_ERROR_CODES.includes(code as ConversionErrorCode)
+            ? t(`conversionError.${code as ConversionErrorCode}`)
+            : t("conversionFailed")
+        );
       }
     } catch {
       toast.error(tc("error"));

@@ -3,6 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import BookDetail from "./BookDetail";
+import { publicConversionError } from "@/lib/ebook/conversion-error";
 
 type PageProps = { params: Promise<{ id: string }> };
 
@@ -108,7 +109,7 @@ export default async function BookPage({ params }: PageProps) {
     downloadCount: bookRaw.downloadCount,
     viewCount: bookRaw.viewCount,
     conversionStatus: bookRaw.conversionStatus,
-    conversionError: bookRaw.conversionError,
+    conversionError: publicConversionError(bookRaw.conversionError),
     originalFileUrl: bookRaw.originalFileUrl
       ? `/api/books/${id}/download?variant=original`
       : null,
